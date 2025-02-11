@@ -1,0 +1,105 @@
+{
+  "common": {
+    "appName": "AI Design Market",
+    "marketplace": "Marketplace",
+    "create": "Create",
+    "dashboard": "Dashboard",
+    "login": "Login",
+    "signup": "Sign up",
+    "signout": "Sign out",
+    "loading": "Loading..."
+  },
+  "home": {
+    "title": "Transform Your Ideas into Unique Designs",
+    "subtitle": "Create stunning artwork with AI and turn them into custom products. Join our creative marketplace and start selling your designs today.",
+    "createButton": "Create Design",
+    "exploreButton": "Explore Marketplace"
+  },
+  "marketplace": {
+    "title": "Marketplace",
+    "searchPlaceholder": "Search designs...",
+    "category": "Category",
+    "categories": {
+      "all": "All Categories",
+      "abstract": "Abstract",
+      "landscape": "Landscape",
+      "portrait": "Portrait",
+      "pattern": "Pattern"
+    },
+    "sortBy": "Sort by",
+    "sortOptions": {
+      "newest": "Newest First",
+      "oldest": "Oldest First",
+      "mostLiked": "Most Liked"
+    },
+    "noDesigns": "No designs found.",
+    "viewDetails": "View Details",
+    "purchase": "Purchase",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "stats": {
+      "totalDesigns": "Total Designs",
+      "totalLikes": "Total Likes",
+      "totalViews": "Total Views",
+      "totalOrders": "Total Orders"
+    },
+    "tabs": {
+      "designs": "My Designs",
+      "orders": "My Orders"
+    },
+    "designs": {
+      "filterStatus": "Filter by status",
+      "status": {
+        "all": "All Status",
+        "draft": "Draft",
+        "marketplace": "Published",
+        "private": "Private"
+      },
+      "sortBy": {
+        "newest": "Newest First",
+        "oldest": "Oldest First",
+        "mostLiked": "Most Liked",
+        "mostViewed": "Most Viewed"
+      },
+      "actions": {
+        "view": "View",
+        "publish": "Publish",
+        "unpublish": "Unpublish"
+      }
+    },
+    "orders": {
+      "noOrders": "No orders yet",
+      "noOrdersSubtitle": "Your order history will appear here",
+      "orderId": "Order #",
+      "productType": "Product Type",
+      "totalAmount": "Total Amount"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Enter your email to sign in to your account",
+      "emailLabel": "Email",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "Password",
+      "submitButton": "Sign In",
+      "noAccount": "Don't have an account?",
+      "signupLink": "Sign Up"
+    },
+    "register": {
+      "title": "Create an account",
+      "subtitle": "Enter your details to create your account",
+      "fullNameLabel": "Full Name",
+      "fullNamePlaceholder": "John Doe",
+      "emailLabel": "Email",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "Password",
+      "submitButton": "Create Account",
+      "haveAccount": "Already have an account?",
+      "loginLink": "Sign In"
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "common": {
+    "appName": "Marché de Design IA",
+    "marketplace": "Marché",
+    "create": "Créer",
+    "dashboard": "Tableau de bord",
+    "login": "Connexion",
+    "signup": "S'inscrire",
+    "signout": "Déconnexion",
+    "loading": "Chargement..."
+  },
+  "home": {
+    "title": "Transformez vos idées en designs uniques",
+    "subtitle": "Créez des œuvres d'art étonnantes avec l'IA et transformez-les en produits personnalisés. Rejoignez notre marché créatif et commencez à vendre vos designs dès aujourd'hui.",
+    "createButton": "Créer un design",
+    "exploreButton": "Explorer le marché"
+  },
+  "marketplace": {
+    "title": "Marché",
+    "searchPlaceholder": "Rechercher des designs...",
+    "category": "Catégorie",
+    "categories": {
+      "all": "Toutes les catégories",
+      "abstract": "Abstrait",
+      "landscape": "Paysage",
+      "portrait": "Portrait",
+      "pattern": "Motif"
+    },
+    "sortBy": "Trier par",
+    "sortOptions": {
+      "newest": "Plus récents",
+      "oldest": "Plus anciens",
+      "mostLiked": "Plus aimés"
+    },
+    "noDesigns": "Aucun design trouvé.",
+    "viewDetails": "Voir les détails",
+    "purchase": "Acheter",
+    "previous": "Précédent",
+    "next": "Suivant"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "stats": {
+      "totalDesigns": "Total des designs",
+      "totalLikes": "Total des likes",
+      "totalViews": "Total des vues",
+      "totalOrders": "Total des commandes"
+    },
+    "tabs": {
+      "designs": "Mes Designs",
+      "orders": "Mes Commandes"
+    },
+    "designs": {
+      "filterStatus": "Filtrer par statut",
+      "status": {
+        "all": "Tous les statuts",
+        "draft": "Brouillon",
+        "marketplace": "Publié",
+        "private": "Privé"
+      },
+      "sortBy": {
+        "newest": "Plus récents",
+        "oldest": "Plus anciens",
+        "mostLiked": "Plus aimés",
+        "mostViewed": "Plus vus"
+      },
+      "actions": {
+        "view": "Voir",
+        "publish": "Publier",
+        "unpublish": "Dépublier"
+      }
+    },
+    "orders": {
+      "noOrders": "Aucune commande",
+      "noOrdersSubtitle": "Votre historique de commandes apparaîtra ici",
+      "orderId": "Commande #",
+      "productType": "Type de produit",
+      "totalAmount": "Montant total"
+    }
+  },
+  "auth": {
+    "login": {
+      "title": "Bon retour",
+      "subtitle": "Entrez votre email pour vous connecter à votre compte",
+      "emailLabel": "Email",
+      "emailPlaceholder": "nom@exemple.com",
+      "passwordLabel": "Mot de passe",
+      "submitButton": "Se connecter",
+      "noAccount": "Vous n'avez pas de compte ?",
+      "signupLink": "S'inscrire"
+    },
+    "register": {
+      "title": "Créer un compte",
+      "subtitle": "Entrez vos informations pour créer votre compte",
+      "fullNameLabel": "Nom complet",
+      "fullNamePlaceholder": "Jean Dupont",
+      "emailLabel": "Email",
+      "emailPlaceholder": "nom@exemple.com",
+      "passwordLabel": "Mot de passe",
+      "submitButton": "Créer un compte",
+      "haveAccount": "Vous avez déjà un compte ?",
+      "loginLink": "Se connecter"
+    }
+  }
+}
