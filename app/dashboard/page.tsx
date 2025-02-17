@@ -105,16 +105,50 @@ export default function DashboardPage () {
     setLoading(true)
 
     try {
-      // Load stats
-      const { data: designStats } = await supabase
+      // Préparer les requêtes
+      const designStatsQuery = supabase
         .from('designs')
         .select('likes_count, views_count', { count: 'exact' })
         .eq('creator_id', user.id)
 
-      const { count: ordersCount } = await supabase
+      const ordersQuery = supabase
         .from('orders')
         .select('*', { count: 'exact' })
         .eq('buyer_id', user.id)
+
+      let designsQuery = supabase
+        .from('designs')
+        .select('*', { count: 'exact' })
+        .eq('creator_id', user.id)
+
+      if (filterStatus !== 'all') {
+        designsQuery = designsQuery.eq('status', filterStatus)
+      }
+      // Appliquer le tri
+      switch (sortBy) {
+        case 'oldest':
+          designsQuery = designsQuery.order('created_at', { ascending: true })
+          break
+        case 'most_liked':
+          designsQuery = designsQuery.order('likes_count', { ascending: false })
+          break
+        case 'most_viewed':
+          designsQuery = designsQuery.order('views_count', { ascending: false })
+          break
+        default:
+          designsQuery = designsQuery.order('created_at', { ascending: false })
+      }
+      designsQuery = designsQuery.range(
+        (page - 1) * itemsPerPage,
+        page * itemsPerPage - 1
+      )
+
+      // Exécuter toutes les requêtes en parallèle
+      const [
+        { data: designStats },
+        { count: ordersCount, data: ordersData },
+        { count: designsCount, data: designsData }
+      ] = await Promise.all([designStatsQuery, ordersQuery, designsQuery])
 
       if (designStats) {
         setStats({
@@ -130,55 +164,14 @@ export default function DashboardPage () {
           total_orders: ordersCount || 0
         })
       }
-
-      // Load designs with pagination
-      let query = supabase
-        .from('designs')
-        .select('*', { count: 'exact' })
-        .eq('creator_id', user.id)
-
-      if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus)
-      }
-
-      switch (sortBy) {
-        case 'oldest':
-          query = query.order('created_at', { ascending: true })
-          break
-        case 'most_liked':
-          query = query.order('likes_count', { ascending: false })
-          break
-        case 'most_viewed':
-          query = query.order('views_count', { ascending: false })
-          break
-        default:
-          query = query.order('created_at', { ascending: false })
-      }
-
-      query = query.range((page - 1) * itemsPerPage, page * itemsPerPage - 1)
-
-      const { data: designsData, count } = await query
-
-      if (count) {
-        setTotalPages(Math.ceil(count / itemsPerPage))
-      }
       setDesigns(designsData || [])
-
-      // Load orders
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select(
-          `
-          *,
-          design:designs(*)
-        `
-        )
-        .eq('buyer_id', user.id)
-        .order('created_at', { ascending: false })
-
       setOrders(ordersData || [])
+      if (designsCount) {
+        setTotalPages(Math.ceil(designsCount / itemsPerPage))
+      }
     } catch (error: any) {
       toast.error('Error loading dashboard data')
+      console.error(error)
     } finally {
       setLoading(false)
     }

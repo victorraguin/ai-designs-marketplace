@@ -136,7 +136,6 @@ class GelatoClient {
   async getProducts (): Promise<GelatoProduct[]> {
     try {
       const catalogsResponse = await this.getCatalogs()
-      console.log('Catalogs response:', catalogsResponse)
       const catalogs: any[] = Array.isArray(catalogsResponse)
         ? catalogsResponse
         : catalogsResponse.data || catalogsResponse.catalogs

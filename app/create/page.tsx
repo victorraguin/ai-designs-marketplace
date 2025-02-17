@@ -102,6 +102,7 @@ export default function CreatePage () {
   const handleDescriptionSubmit = async (description: string) => {
     setLastDescription(description)
     setLoading(true)
+
     try {
       const finalPrompt = getSystemPrompt(description)
 
@@ -113,7 +114,7 @@ export default function CreatePage () {
           body: JSON.stringify({
             image_request: {
               prompt: finalPrompt,
-              model: 'V_2',
+              model: 'V_2_TURBO',
               style_type: 'DESIGN',
               magic_prompt_option: 'ON',
               num_images: 2,
@@ -126,22 +127,61 @@ export default function CreatePage () {
       if (!response.ok) throw new Error('Generation failed')
       const body = await response.json()
 
-      // On récupère juste les URLs éphémères (qu’on va afficher direct)
+      // Récupérer les URLs éphémères
       const ephemeralUrls = body.data.map((item: any) => item.url)
-      console.log('Generated ephemeral URLs:', ephemeralUrls)
 
-      // On construit un tableau d’objets { url }
-      const ephemeralImages = ephemeralUrls.map((url: string) => ({ url }))
-
-      // Stocker en state => on pourra les afficher dans step "validation"
+      // Mettre à jour immédiatement le state pour affichage
+      const ephemeralImages = ephemeralUrls.map((url: string) => ({
+        url,
+        designId: null
+      }))
       setGeneratedImages(ephemeralImages)
 
-      // Passer à l’étape "validation"
+      // Ici, on passe immédiatement à l'étape de validation et on libère le chargement pour l'utilisateur
       setCurrentStep('validation')
-    } catch (error: any) {
-      console.error(error)
+      setLoading(false)
+
+      // Ensuite, en arrière-plan, on lance le traitement pour l'upload et l'insertion en DB.
+      // On récupère l'ID utilisateur
+      const userResponse = await supabase.auth.getUser()
+      const userId = userResponse.data.user?.id
+      if (!userId) throw new Error('User not authenticated')
+
+      // Traiter chaque image en parallèle
+      await Promise.all(
+        ephemeralUrls.map(async (imageUrl: string) => {
+          const storagePath = `app/${userId}/generated/${Date.now()}.png`
+          const uploadedUrl = await uploadImageToStorage(imageUrl, storagePath)
+
+          // Insérer en DB avec status "created"
+          const { data, error } = await supabase
+            .from('designs')
+            .insert([
+              {
+                image_url: uploadedUrl,
+                prompt: description,
+                status: 'created',
+                creator_id: userId
+              }
+            ])
+            .select('id')
+          if (error) {
+            console.error('DB insertion error for image:', imageUrl, error)
+          } else {
+            // Mettre à jour les IDs des designs générés en background
+            setGeneratedImages(prev =>
+              prev.map(img =>
+                img.url === imageUrl ? { ...img, designId: data?.[0]?.id } : img
+              )
+            )
+          }
+        })
+      )
+      // Vous pouvez éventuellement notifier l'utilisateur en cas d'erreur en background,
+      // mais ici on considère que l'affichage des images éphémères suffit.
+    } catch (error) {
+      console.error('Error in handleDescriptionSubmit:', error)
       toast.error('Error generating images')
-    } finally {
       setLoading(false)
     }
   }
@@ -154,77 +194,26 @@ export default function CreatePage () {
    *  - Puis on redirige
    */
   const handleImageValidation = async (selectedImageUrl: string) => {
-    console.log('handleImageValidation START')
-    setLoading(true)
-
     try {
-      console.log('Finding selected image...')
       const chosen = generatedImages.find(img => img.url === selectedImageUrl)
-      if (!chosen) {
-        console.error('Selected image not found in generatedImages.')
-        toast.error('Impossible de trouver le design sélectionné')
-        setLoading(false)
+      if (!chosen || !chosen.designId) {
+        toast.error('Design not found in database')
+        console.error('Design not found:', chosen)
         return
       }
 
-      console.log('Fetching user session...')
-      const userResponse = await supabase.auth.getUser()
-      const userId = userResponse.data.user?.id
-
-      if (!userId) {
-        console.error('User not authenticated.')
-        toast.error('You must be logged in to validate a design.')
-        setLoading(false)
-        return
-      }
-
-      console.log('Uploading image to storage...')
-      const finalPath = `users/${userId}/processed/${Date.now()}.png`
-      const processedUrl = await uploadImageToStorage(chosen.url, finalPath)
-
-      if (!processedUrl) {
-        console.error('Image upload failed.')
-        toast.error('Error uploading image.')
-        setLoading(false)
-        return
-      }
-
-      console.log('Inserting design into database...')
-      const userPrompt = getUserPrompt(lastDescription)
-
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('designs')
-        .insert([
-          {
-            image_url: processedUrl,
-            prompt: userPrompt,
-            status: 'pending',
-            creator_id: userId
-          }
-        ])
-        .select('id')
-
+        .update({ status: 'validated' })
+        .eq('id', chosen.designId)
       if (error) {
-        console.error('Database insertion failed:', error)
+        console.error('DB update error:', error)
         throw error
       }
-
-      const createdDesignId = data?.[0]?.id
-      if (!createdDesignId) {
-        console.error('No design ID returned from DB.')
-        toast.error('No design ID returned from DB.')
-        setLoading(false)
-        return
-      }
-
-      console.log('Redirecting to customize page...')
-      router.push(`/customize-product/${createdDesignId}`)
+      router.push(`/customize-product/${chosen.designId}`)
     } catch (error) {
       console.error('Error in handleImageValidation:', error)
-      toast.error('Error saving design')
-    } finally {
-      console.log('handleImageValidation END')
-      setLoading(false)
+      toast.error('Error validating design')
     }
   }
 
@@ -244,27 +233,25 @@ export default function CreatePage () {
    */
   const uploadImageToStorage = async (imageUrl: string, path: string) => {
     try {
-      const proxiedImageUrl = `https://weavly-server.onrender.com/proxy?url=${encodeURIComponent(
-        imageUrl
-      )}`
-
-      const response = await fetch(proxiedImageUrl)
+      const response = await fetch(
+        `https://weavly-server.onrender.com/proxy?url=${encodeURIComponent(
+          imageUrl
+        )}`
+      )
       const blob = await response.blob()
 
       const { data, error } = await supabase.storage
         .from('designs')
         .upload(path, blob)
-
       if (error) throw error
 
       // Récupérer l'URL publique
       const { data: publicUrl } = supabase.storage
         .from('designs')
         .getPublicUrl(data.path)
-
       return publicUrl.publicUrl
     } catch (error) {
-      console.error('Erreur upload image:', error)
+      console.error('Image upload failed:', error)
       throw error
     }
   }

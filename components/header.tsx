@@ -14,10 +14,8 @@ export function Header () {
   const { user } = useAuth()
 
   const handleSignOut = async () => {
-    console.log('sign out')
     try {
       await supabase.auth.signOut()
-      console.log('sign out')
       toast.success('Signed out successfully')
       router.push('/')
       router.refresh()
