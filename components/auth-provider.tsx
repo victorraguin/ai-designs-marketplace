@@ -25,38 +25,62 @@ export function AuthProvider ({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check current session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            setProfile(data)
-            setLoading(false)
-          })
-      } else {
-        setLoading(false)
-      }
-    })
+    const fetchProfile = async (user: User) => {
+      // Vérifier si l'utilisateur existe déjà dans user_profiles
+      const { data: existingProfile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single()
 
-    // Listen for auth changes
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error)
+        return
+      }
+
+      if (!existingProfile) {
+        // Insérer l'utilisateur dans user_profiles si non existant
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert([
+            {
+              user_id: user.id,
+              email: user.email,
+              full_name: user.user_metadata.full_name || ''
+            }
+          ])
+
+        if (insertError) {
+          console.error('Error inserting user profile:', insertError)
+        }
+      } else {
+        setProfile(existingProfile)
+      }
+    }
+
+    const loadSession = async () => {
+      const { data: sessionData } = await supabase.auth.getSession()
+      const sessionUser = sessionData?.session?.user ?? null
+      setUser(sessionUser)
+
+      if (sessionUser) {
+        await fetchProfile(sessionUser)
+      }
+
+      setLoading(false)
+    }
+
+    loadSession()
+
+    // Écouter les changements d'authentification
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null)
+      const sessionUser = session?.user ?? null
+      setUser(sessionUser)
 
-      if (session?.user) {
-        const { data } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-
-        setProfile(data)
+      if (sessionUser) {
+        await fetchProfile(sessionUser)
       } else {
         setProfile(null)
       }

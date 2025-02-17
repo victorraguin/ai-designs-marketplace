@@ -35,10 +35,12 @@ export default function LoginPage () {
     }
 
     if (authData.user) {
+      const userId = authData.user.id // Correctement récupérer l'ID de l'utilisateur
+
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('id', authData.user.id)
+        .eq('user_id', userId) // ✅ Utiliser 'user_id' au lieu de 'id'
         .single()
 
       if (profileError && profileError.code === 'PGRST116') {
@@ -47,8 +49,7 @@ export default function LoginPage () {
           .from('user_profiles')
           .insert([
             {
-              id: authData.user.id,
-              email: authData.user.email,
+              user_id: userId,
               full_name: authData.user.user_metadata?.full_name || null
             }
           ])

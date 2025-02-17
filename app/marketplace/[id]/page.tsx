@@ -59,7 +59,7 @@ export default function DesignDetailPage () {
         .select(
           `
           *,
-          creator:user_profiles(full_name, email),
+          creator:user_profiles(full_name),
           style:styles(name, description)
         `
         )

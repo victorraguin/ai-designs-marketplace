@@ -73,7 +73,7 @@ export default function CreatePage () {
         basePrompt = `A geometric and minimalist ${description} illustration. The composition features a stylized view ramed by abstract layers. The color palette is bold and primary, with red, yellow, blue, black, and white dominating the scene. The illustration is reduced to sharp, clean lines and geometric shapes, resembling a Bauhaus and De Stijl-inspired aesthetic. The illustration has a structured, graphic design feel with a sense of depth leading to a central vanishing point.`
         break
       case 'symbols':
-        basePrompt = `A illustration, possibly a painting. The artwork is filled with various symbols, text, and doodles, inspired by Jean Michel Bauhaus. There are also handwritten notes and scribbles scattered throughout. The illustration represent : ${description}`
+        basePrompt = `A illustration, possibly a painting. The artwork is filled with various symbols, and doodles. There are also scribbles scattered throughout. The illustration represent : ${description}`
         break
       case 'mystic':
         basePrompt = `A ${description} covered in intricate white mystical symbols and graffiti-style designs. The central motif is an all-seeing eye, surrounded by crosses, lightning bolts, and esoteric markings. The artwork has a raw, hand-drawn quality, resembling chalk or street art.`
@@ -154,27 +154,42 @@ export default function CreatePage () {
    *  - Puis on redirige
    */
   const handleImageValidation = async (selectedImageUrl: string) => {
+    console.log('handleImageValidation START')
     setLoading(true)
+
     try {
-      // Retrouver l’image
+      console.log('Finding selected image...')
       const chosen = generatedImages.find(img => img.url === selectedImageUrl)
       if (!chosen) {
+        console.error('Selected image not found in generatedImages.')
         toast.error('Impossible de trouver le design sélectionné')
+        setLoading(false)
         return
       }
 
-      // 2) Uploader l’image traitée
+      console.log('Fetching user session...')
       const userResponse = await supabase.auth.getUser()
       const userId = userResponse.data.user?.id
-      const finalPath = userId
-        ? `users/${userId}/processed/${Date.now()}.png`
-        : `app/processed/${Date.now()}.png`
 
+      if (!userId) {
+        console.error('User not authenticated.')
+        toast.error('You must be logged in to validate a design.')
+        setLoading(false)
+        return
+      }
+
+      console.log('Uploading image to storage...')
+      const finalPath = `users/${userId}/processed/${Date.now()}.png`
       const processedUrl = await uploadImageToStorage(chosen.url, finalPath)
-      setProcessedImage(processedUrl) // si besoin pour affichage
 
-      // 3) Insérer en DB (ou faire un UPDATE si vous aviez déjà créé la ligne)
-      //    ICI on choisit d’insérer la ligne "finale" dans designs (status='pending')
+      if (!processedUrl) {
+        console.error('Image upload failed.')
+        toast.error('Error uploading image.')
+        setLoading(false)
+        return
+      }
+
+      console.log('Inserting design into database...')
       const userPrompt = getUserPrompt(lastDescription)
 
       const { data, error } = await supabase
@@ -189,20 +204,26 @@ export default function CreatePage () {
         ])
         .select('id')
 
-      if (error) throw error
+      if (error) {
+        console.error('Database insertion failed:', error)
+        throw error
+      }
 
       const createdDesignId = data?.[0]?.id
       if (!createdDesignId) {
-        toast.error('No design ID returned from DB')
+        console.error('No design ID returned from DB.')
+        toast.error('No design ID returned from DB.')
+        setLoading(false)
         return
       }
 
-      // 4) Rediriger vers la page customize
+      console.log('Redirecting to customize page...')
       router.push(`/customize-product/${createdDesignId}`)
-    } catch (error: any) {
-      console.error(error)
+    } catch (error) {
+      console.error('Error in handleImageValidation:', error)
       toast.error('Error saving design')
     } finally {
+      console.log('handleImageValidation END')
       setLoading(false)
     }
   }

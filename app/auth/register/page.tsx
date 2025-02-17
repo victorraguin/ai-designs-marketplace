@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 export default function RegisterPage () {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit (event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -20,8 +21,17 @@ export default function RegisterPage () {
     const formData = new FormData(event.currentTarget)
     const email = formData.get('email') as string
     const password = formData.get('password') as string
+    const confirmPassword = formData.get('confirmPassword') as string
     const fullName = formData.get('fullName') as string
 
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match')
+      setError('Passwords do not match')
+      setIsLoading(false)
+      return
+    }
+
+    // Création de l'utilisateur dans auth.users
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -38,27 +48,17 @@ export default function RegisterPage () {
       return
     }
 
-    if (authData.user) {
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .insert([
-          {
-            id: authData.user.id,
-            email: email,
-            full_name: fullName
-          }
-        ])
-
-      if (profileError) {
-        toast.error('Error creating profile. Please try again.')
-        setIsLoading(false)
-        return
-      }
+    if (!authData.user) {
+      toast.error('User creation failed. Try again.')
+      setIsLoading(false)
+      return
     }
 
-    toast.success('Account created successfully!')
-    router.push('/')
-    router.refresh()
+    // Redirection (demander de vérifier l'e-mail si nécessaire)
+    toast.info(
+      'Thanks for signin up! Please check your email to confirm your account.'
+    )
+    router.push('/auth/login')
   }
 
   return (
@@ -109,6 +109,17 @@ export default function RegisterPage () {
                 required
               />
             </div>
+            <div className='space-y-2'>
+              <Label htmlFor='confirmPassword'>Confirm Password</Label>
+              <Input
+                id='confirmPassword'
+                name='confirmPassword'
+                type='password'
+                disabled={isLoading}
+                required
+              />
+            </div>
+            {error && <p className='text-sm text-red-500'>{error}</p>}
             <Button className='w-full' type='submit' disabled={isLoading}>
               {isLoading ? 'Creating account...' : 'Create Account'}
             </Button>
