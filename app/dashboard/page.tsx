@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,21 +15,13 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import {
-  Loader2,
-  Heart,
-  Eye,
-  Tag,
-  Paintbrush,
-  ShoppingBag,
-  Settings,
-  User
-} from 'lucide-react'
+import { Loader2, Heart, Eye, Paintbrush, ShoppingBag } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { AddressSelector } from '@/components/address-selector'
+import ReactFlagsSelect from 'react-flags-select'
 
 interface Profile {
   id: string
@@ -38,6 +31,7 @@ interface Profile {
   generations_used: number
   last_generation_reset: string
   is_admin: boolean
+  country: string
 }
 
 interface Design {
@@ -87,7 +81,8 @@ export default function DashboardPage () {
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileForm, setProfileForm] = useState({
     full_name: '',
-    email: ''
+    email: '',
+    country: '' // Ajout du champ country
   })
   const itemsPerPage = 8
   const { user } = useAuth()
@@ -98,6 +93,7 @@ export default function DashboardPage () {
       return
     }
     loadData()
+    loadProfile()
   }, [user, page, sortBy, filterStatus])
 
   async function loadData () {
@@ -105,50 +101,16 @@ export default function DashboardPage () {
     setLoading(true)
 
     try {
-      // Préparer les requêtes
-      const designStatsQuery = supabase
+      // Charger les stats
+      const { data: designStats } = await supabase
         .from('designs')
         .select('likes_count, views_count', { count: 'exact' })
         .eq('creator_id', user.id)
 
-      const ordersQuery = supabase
+      const { count: ordersCount } = await supabase
         .from('orders')
         .select('*', { count: 'exact' })
         .eq('buyer_id', user.id)
-
-      let designsQuery = supabase
-        .from('designs')
-        .select('*', { count: 'exact' })
-        .eq('creator_id', user.id)
-
-      if (filterStatus !== 'all') {
-        designsQuery = designsQuery.eq('status', filterStatus)
-      }
-      // Appliquer le tri
-      switch (sortBy) {
-        case 'oldest':
-          designsQuery = designsQuery.order('created_at', { ascending: true })
-          break
-        case 'most_liked':
-          designsQuery = designsQuery.order('likes_count', { ascending: false })
-          break
-        case 'most_viewed':
-          designsQuery = designsQuery.order('views_count', { ascending: false })
-          break
-        default:
-          designsQuery = designsQuery.order('created_at', { ascending: false })
-      }
-      designsQuery = designsQuery.range(
-        (page - 1) * itemsPerPage,
-        page * itemsPerPage - 1
-      )
-
-      // Exécuter toutes les requêtes en parallèle
-      const [
-        { data: designStats },
-        { count: ordersCount, data: ordersData },
-        { count: designsCount, data: designsData }
-      ] = await Promise.all([designStatsQuery, ordersQuery, designsQuery])
 
       if (designStats) {
         setStats({
@@ -164,11 +126,50 @@ export default function DashboardPage () {
           total_orders: ordersCount || 0
         })
       }
-      setDesigns(designsData || [])
-      setOrders(ordersData || [])
-      if (designsCount) {
-        setTotalPages(Math.ceil(designsCount / itemsPerPage))
+
+      // Charger les designs avec pagination
+      let designsQuery = supabase
+        .from('designs')
+        .select('*', { count: 'exact' })
+        .eq('creator_id', user.id)
+
+      if (filterStatus !== 'all') {
+        designsQuery = designsQuery.eq('status', filterStatus)
       }
+
+      switch (sortBy) {
+        case 'oldest':
+          designsQuery = designsQuery.order('created_at', { ascending: true })
+          break
+        case 'most_liked':
+          designsQuery = designsQuery.order('likes_count', { ascending: false })
+          break
+        case 'most_viewed':
+          designsQuery = designsQuery.order('views_count', { ascending: false })
+          break
+        default:
+          designsQuery = designsQuery.order('created_at', { ascending: false })
+      }
+
+      designsQuery = designsQuery.range(
+        (page - 1) * itemsPerPage,
+        page * itemsPerPage - 1
+      )
+      const { data: designsData, count } = await designsQuery
+
+      if (count) {
+        setTotalPages(Math.ceil(count / itemsPerPage))
+      }
+      setDesigns(designsData || [])
+
+      // Charger les commandes
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select(`*, design:designs(*)`)
+        .eq('buyer_id', user.id)
+        .order('created_at', { ascending: false })
+
+      setOrders(ordersData || [])
     } catch (error: any) {
       toast.error('Error loading dashboard data')
       console.error(error)
@@ -184,7 +185,7 @@ export default function DashboardPage () {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('user_id', user.id)
         .single()
 
       if (error) throw error
@@ -192,7 +193,8 @@ export default function DashboardPage () {
       setProfile(data)
       setProfileForm({
         full_name: data.full_name || '',
-        email: data.email
+        email: data.email,
+        country: data.country || 'FR'
       })
     } catch (error: any) {
       toast.error('Error loading profile')
@@ -208,9 +210,10 @@ export default function DashboardPage () {
         .from('user_profiles')
         .update({
           full_name: profileForm.full_name,
-          email: profileForm.email
+          email: profileForm.email,
+          country: profileForm.country // Mise à jour du pays
         })
-        .eq('id', user.id)
+        .eq('user_id', user.id)
 
       if (error) throw error
 
@@ -540,6 +543,35 @@ export default function DashboardPage () {
                           }
                         />
                       </div>
+                      <div className='space-y-2'>
+                        <label className='text-sm font-medium'>Country</label>
+                        <ReactFlagsSelect
+                          selected={profileForm.country}
+                          onSelect={code =>
+                            setProfileForm({ ...profileForm, country: code })
+                          }
+                          countries={[
+                            'US',
+                            'GB',
+                            'FR',
+                            'DE',
+                            'IT',
+                            'ES',
+                            'CA',
+                            'AU',
+                            'JP',
+                            'CN',
+                            'BR',
+                            'IN',
+                            'RU',
+                            'KR',
+                            'MX'
+                          ]}
+                          searchable
+                          className='menu-flags'
+                          selectButtonClassName='menu-flags-button'
+                        />
+                      </div>
                       <Button type='submit'>Save Changes</Button>
                     </form>
                   ) : (
@@ -555,6 +587,12 @@ export default function DashboardPage () {
                         <p className='text-sm text-muted-foreground'>
                           {profile?.email}
                         </p>
+                      </div>
+                      <div>
+                        <p className='text-sm font-medium'>Country</p>
+                        <div className='flex items-center gap-2'>
+                          <span>{profile?.country}</span>
+                        </div>
                       </div>
                       <div>
                         <p className='text-sm font-medium'>Subscription</p>

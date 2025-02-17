@@ -24,12 +24,13 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
-import { Loader2, Truck, Flag } from 'lucide-react'
+import { Loader2, Truck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { GelatoProduct } from '@/lib/gelato'
 import { useAuth } from '@/components/auth-provider'
 import { ProductCustomizer } from '@/components/product-customizer'
 import { toast } from 'sonner'
+import { getCountryName } from '@/lib/countries'
 
 interface Design {
   id: string
@@ -37,8 +38,19 @@ interface Design {
   prompt: string
 }
 
+// Utilitaire pour récupérer un emoji de drapeau à partir du code pays (ex. 'FR' -> 🇫🇷)
+function getFlagEmoji (countryCode: string) {
+  if (!countryCode) return '🏳️'
+  const codePoints = countryCode
+    .toUpperCase()
+    .split('')
+    .map(char => 127397 + char.charCodeAt(0))
+  return String.fromCodePoint(...codePoints)
+}
+
 // Format translations with metric and imperial units
 const formatTranslations: { [key: string]: string } = {
+  '200x200-mm-8x8-inch': '20x20cm / 8x8 "',
   '11x14-inch-270x350-mm': '27x35cm / 11x14"',
   '12x12-inch-300x300-mm': '30x30cm / 12x12"',
   '12x16-inch-300x400-mm': '30x40cm / 12x16"',
@@ -79,6 +91,10 @@ export default function CustomizeProductPage () {
     null
   )
 
+  // Extraire le pays de l'utilisateur (exemple basé sur user_metadata)
+  const userCountry = (user?.user_metadata?.country as string) || 'FR'
+  const flagEmoji = getFlagEmoji(userCountry)
+
   useEffect(() => {
     loadDesign()
     loadGelatoProducts()
@@ -108,21 +124,21 @@ export default function CustomizeProductPage () {
       )
       setProducts(canvasProducts)
 
-      // Set default selections if products exist
-      if (canvasProducts.length > 0) {
-        const formats = Array.from(
-          new Set(canvasProducts.map(p => p.attributes.UnifiedCanvasFormat))
-        )
-        const orientations = Array.from(
-          new Set(canvasProducts.map(p => p.attributes.Orientation))
-        )
-        const thicknesses = Array.from(
-          new Set(canvasProducts.map(p => p.attributes.CanvasThicknessType))
-        )
-        setSelectedFormat(formats[0] || '')
-        setSelectedOrientation(orientations[0] || '')
-        setSelectedThickness(thicknesses[0] || '')
-      }
+      // Récupère les listes uniques de formats, orientations, épaisseurs
+      const formats = Array.from(
+        new Set(canvasProducts.map(p => p.attributes.UnifiedCanvasFormat))
+      )
+      const orientations = Array.from(
+        new Set(canvasProducts.map(p => p.attributes.Orientation))
+      )
+      const thicknesses = Array.from(
+        new Set(canvasProducts.map(p => p.attributes.CanvasThicknessType))
+      )
+
+      // Définit les valeurs par défaut
+      setSelectedFormat(formats[0] || '')
+      setSelectedOrientation(orientations[0] || '')
+      setSelectedThickness(thicknesses[0] || '')
     } catch (error) {
       console.error('Error loading products:', error)
       toast.error('Error loading products')
@@ -131,7 +147,7 @@ export default function CustomizeProductPage () {
     }
   }
 
-  // Update filtered product when selections change
+  // Met à jour le produit filtré quand les sélections changent
   useEffect(() => {
     if (!selectedFormat || !selectedOrientation || !selectedThickness) return
     const prod = products.find(
@@ -156,19 +172,8 @@ export default function CustomizeProductPage () {
       toast.error("Please ensure you're logged in and a product is selected")
       return
     }
+    console.log('run order', data)
     try {
-      // Create order in database
-      const { error: orderError } = await supabase.from('orders').insert([
-        {
-          design_id: design.id,
-          buyer_id: user.id,
-          product_type: data.variant.sku,
-          total_amount: data.variant.price,
-          order_status: 'pending'
-        }
-      ])
-      if (orderError) throw orderError
-
       // Create Gelato order
       const gelatoOrder = await fetch('/api/gelato/order', {
         method: 'POST',
@@ -179,13 +184,11 @@ export default function CustomizeProductPage () {
           items: [
             {
               productUid: data.variant.sku,
-              variantUid: data.variant.id,
               quantity: 1,
               files: [
                 {
                   url: design.image_url,
-                  type: 'preview',
-                  printArea: data.printArea
+                  type: 'default'
                 }
               ]
             }
@@ -197,11 +200,11 @@ export default function CustomizeProductPage () {
               user.user_metadata?.full_name?.split(' ').slice(1).join(' ') ||
               'Name',
             email: user.email || '',
-            phone: '',
-            street: '123 Example Street',
-            city: 'Paris',
-            country: 'FR',
-            zipCode: '75001',
+            phone: '0662398343',
+            street: '8 impasse charlemagne',
+            city: 'Chaumes en Retz',
+            country: userCountry,
+            postCode: '44320',
             state: ''
           }
         })
@@ -209,6 +212,19 @@ export default function CustomizeProductPage () {
       if (!gelatoOrder.ok) {
         throw new Error('Error creating Gelato order')
       }
+      // Create order in database
+      const { error: orderError } = await supabase.from('orders').insert([
+        {
+          design_id: design.id,
+          buyer_id: user.id,
+          product_type: data.variant.sku,
+          total_amount: data.variant.price,
+          order_status: 'pending'
+        }
+      ])
+      console.log(orderError)
+      if (orderError) throw orderError
+
       toast.success('Order created successfully!')
     } catch (error: any) {
       console.error('Order creation error:', error)
@@ -216,13 +232,24 @@ export default function CustomizeProductPage () {
     }
   }
 
-  if (loading || !design) {
+  if (loading || !design || !user) {
     return (
       <div className='flex h-[calc(100vh-3.5rem)] items-center justify-center'>
         <Loader2 className='h-8 w-8 animate-spin' />
       </div>
     )
   }
+
+  // Pré-calculer les choix possibles (pour hide/show dropdown)
+  const formatOptions = Array.from(
+    new Set(products.map(p => p.attributes.UnifiedCanvasFormat))
+  )
+  const orientationOptions = Array.from(
+    new Set(products.map(p => p.attributes.Orientation))
+  )
+  const thicknessOptions = Array.from(
+    new Set(products.map(p => p.attributes.CanvasThicknessType))
+  )
 
   return (
     <div className='min-h-[calc(100vh-3.5rem)] py-8'>
@@ -252,10 +279,16 @@ export default function CustomizeProductPage () {
               <CardHeader>
                 <CardTitle className='flex items-center justify-between'>
                   Product Configuration
-                  <Flag className='h-6 w-6 text-blue-600' />
                 </CardTitle>
               </CardHeader>
+
               <CardContent className='space-y-6'>
+                {/* Expédition vers le pays de l'utilisateur */}
+                <div className='flex items-center gap-2 text-sm mb-3 font-medium'>
+                  <span className='text-xl'>{flagEmoji}</span>
+                  <span>Ship to {flagEmoji}</span>
+                </div>
+
                 {/* Format Selection */}
                 <div className='space-y-2'>
                   <Label>Format</Label>
@@ -267,11 +300,7 @@ export default function CustomizeProductPage () {
                       <SelectValue placeholder='Select format' />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from(
-                        new Set(
-                          products.map(p => p.attributes.UnifiedCanvasFormat)
-                        )
-                      ).map(format => (
+                      {formatOptions.map(format => (
                         <SelectItem key={format} value={format}>
                           {formatTranslations[format] || format}
                         </SelectItem>
@@ -280,55 +309,63 @@ export default function CustomizeProductPage () {
                   </Select>
                 </div>
 
-                {/* Orientation Selection */}
+                {/* Orientation Selection - masquer si un seul choix */}
                 <div className='space-y-2'>
                   <Label>Orientation</Label>
-                  <Select
-                    value={selectedOrientation}
-                    onValueChange={setSelectedOrientation}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder='Select orientation' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from(
-                        new Set(products.map(p => p.attributes.Orientation))
-                      ).map(ori => (
-                        <SelectItem key={ori} value={ori}>
-                          {orientationTranslations[ori] || ori}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {orientationOptions.length > 1 ? (
+                    <Select
+                      value={selectedOrientation}
+                      onValueChange={setSelectedOrientation}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder='Select orientation' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {orientationOptions.map(ori => (
+                          <SelectItem key={ori} value={ori}>
+                            {orientationTranslations[ori] || ori}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className='p-2 rounded border text-sm text-foreground/80'>
+                      {orientationTranslations[orientationOptions[0]] ||
+                        orientationOptions[0]}
+                    </div>
+                  )}
                 </div>
 
-                {/* Thickness Selection */}
+                {/* Thickness Selection - masquer si un seul choix */}
                 <div className='space-y-2'>
                   <Label>Thickness</Label>
-                  <Select
-                    value={selectedThickness}
-                    onValueChange={setSelectedThickness}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder='Select thickness' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from(
-                        new Set(
-                          products.map(p => p.attributes.CanvasThicknessType)
-                        )
-                      ).map(th => (
-                        <SelectItem key={th} value={th}>
-                          {thicknessTranslations[th] || th}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {thicknessOptions.length > 1 ? (
+                    <Select
+                      value={selectedThickness}
+                      onValueChange={setSelectedThickness}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder='Select thickness' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {thicknessOptions.map(th => (
+                          <SelectItem key={th} value={th}>
+                            {thicknessTranslations[th] || th}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className='p-2 rounded border text-sm text-foreground/80'>
+                      {thicknessTranslations[thicknessOptions[0]] ||
+                        thicknessOptions[0]}
+                    </div>
+                  )}
                 </div>
 
                 {/* Price Display */}
                 {selectedVariant && (
-                  <div className='bg-secondary p-4 rounded-lg'>
+                  <div className='bg-secondary p-4 rounded-lg text-center'>
                     <p className='text-2xl font-bold'>
                       {selectedVariant.price.toFixed(2)} €
                     </p>
@@ -340,15 +377,15 @@ export default function CustomizeProductPage () {
                   <Truck className='h-4 w-4' />
                   <TooltipProvider>
                     <Tooltip>
-                      <TooltipTrigger className='text-left'>
+                      <TooltipTrigger className='text-left cursor-pointer underline decoration-dotted'>
                         Economy shipping: estimated delivery in 3-4 business
                         days
                       </TooltipTrigger>
                       <TooltipContent>
                         <p className='max-w-xs'>
-                          Delivery time includes us receiving your order,
-                          production and delivery to your customer. Delivery
-                          times are estimates and cannot be guaranteed.
+                          Delivery time includes receiving your order,
+                          production and final shipping. Times are estimates and
+                          may vary.
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -362,27 +399,33 @@ export default function CustomizeProductPage () {
                     <AccordionContent>
                       <div className='space-y-4 text-sm text-muted-foreground'>
                         <p>
-                          Enhanced texture and timeless beauty with our canvas
-                          print. The canvas texture enhances the image's natural
-                          look and feel, creating a truly immersive art
-                          experience:
+                          Elevate your space with our premium-quality canvas
+                          prints. The subtle texture of the canvas enriches
+                          every detail of the artwork, creating a captivating
+                          and immersive viewing experience:
                         </p>
                         <ul className='list-disc pl-4 space-y-2'>
                           <li>
-                            Canvas Material: Responsibly sourced FSC-certified
-                            wood stretcher bars, cotton-polyester blend
-                            (300-350gsm, 350-400 microns).
+                            <strong>Canvas Material:</strong> Responsibly
+                            sourced, FSC-certified wood stretcher bars, with a
+                            cotton-polyester blend (300–350gsm, 350–400
+                            microns).
                           </li>
                           <li>
-                            Thickness: Slim (2cm) and Thick (4cm) options.
+                            <strong>Thickness:</strong> Available in Slim (2cm)
+                            and Thick (4cm) options.
                           </li>
                           <li>
-                            Available Sizes: 26 sizes in inches (US & Canada)
-                            and cms (rest of the world).
+                            <strong>Sizes:</strong> Multiple sizes in inches
+                            (US/CA) and centimeters (international).
                           </li>
-                          <li>Hanging Kit: Included, varies by country.</li>
                           <li>
-                            No minimum orders, printed and shipped on demand.
+                            <strong>Hanging Kit:</strong> Included in every
+                            order (specifics may vary by region).
+                          </li>
+                          <li>
+                            <strong>On-Demand Printing:</strong> No minimum
+                            orders, printed and shipped on demand.
                           </li>
                         </ul>
                       </div>
@@ -396,7 +439,7 @@ export default function CustomizeProductPage () {
                     <AccordionContent>
                       <div className='space-y-4 text-sm text-muted-foreground'>
                         <p className='font-medium'>
-                          Manufacturer contact information
+                          Manufacturer Contact Information
                         </p>
                         <ul className='space-y-1'>
                           <li>Name: Gelato</li>
@@ -405,8 +448,8 @@ export default function CustomizeProductPage () {
                             Postal address: Dronning Eufemias gate 8, 0191 Oslo,
                             Norway
                           </li>
-                          <li>Age guidelines: For adults</li>
-                          <li>Warranty (consumer-sales only): 2 years</li>
+                          <li>Age Guidelines: For adults</li>
+                          <li>Warranty (consumer sales): 2 years</li>
                         </ul>
                       </div>
                     </AccordionContent>
@@ -416,9 +459,9 @@ export default function CustomizeProductPage () {
                     <AccordionTrigger>Packaging</AccordionTrigger>
                     <AccordionContent>
                       <p className='text-sm text-muted-foreground'>
-                        Canvas prints are packaged with strong edges to protect
-                        the items. In addition, we wrap the items in bubble wrap
-                        or kraft paper for additional protection.
+                        Each canvas print is carefully packaged with reinforced
+                        edges for protection. We add bubble wrap or kraft paper
+                        to keep your print safe during shipping.
                       </p>
                     </AccordionContent>
                   </AccordionItem>

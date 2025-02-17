@@ -44,171 +44,154 @@ export interface GelatoShippingAddress {
 
 export interface GelatoOrderItem {
   productUid: string
-  variantUid: string
   quantity: number
   files: {
     url: string
-    type: 'preview' | 'print'
-    printArea?: PrintArea
+    type: string
   }[]
 }
 
 export interface GelatoOrder {
-  orderType: 'order' | 'sample'
+  orderType: string
   currency: string
+  orderReferenceId?: string
+  customerReferenceId?: string
   items: GelatoOrderItem[]
   shippingAddress: GelatoShippingAddress
 }
 
 class GelatoClient {
   private readonly apiUrl = 'https://product.gelatoapis.com'
-  private readonly apiKey = process.env.GELATO_API_KEY || 'mock-key'
+  private readonly apiKey = process.env.GELATO_API_KEY || ''
 
   private async fetch (endpoint: string, options: RequestInit = {}) {
-    try {
-      const response = await fetch(`${this.apiUrl}${endpoint}`, {
-        ...options,
-        headers: {
-          'X-API-KEY': this.apiKey,
-          'Content-Type': 'application/json',
-          ...options.headers
-        }
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(
-          error.message || "Une erreur est survenue avec l'API Gelato"
-        )
+    const response = await fetch(`${this.apiUrl}${endpoint}`, {
+      ...options,
+      headers: {
+        'X-API-KEY': this.apiKey,
+        'Content-Type': 'application/json',
+        ...options.headers
       }
-      return response.json()
-    } catch (error) {
-      console.error('Gelato API error:', error)
-      throw error
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.message || 'API error')
     }
+    return response
   }
 
   async getCatalogs () {
-    // L'API retourne désormais un objet contenant "data"
-    return this.fetch('/v3/catalogs')
+    return (await this.fetch('/v3/catalogs')).json()
   }
 
   async getCatalogDetails (catalogUid: string) {
-    return this.fetch(`/v3/catalogs/${catalogUid}`)
+    return (await this.fetch(`/v3/catalogs/${catalogUid}`)).json()
   }
 
   async searchProducts (catalogUid: string, filters: Record<string, any> = {}) {
-    return this.fetch(`/v3/catalogs/${catalogUid}/products:search`, {
-      method: 'POST',
-      body: JSON.stringify({
-        attributeFilters: filters,
-        limit: 50,
-        offset: 0
+    return (
+      await this.fetch(`/v3/catalogs/${catalogUid}/products:search`, {
+        method: 'POST',
+        body: JSON.stringify({
+          attributeFilters: filters,
+          limit: 50,
+          offset: 0
+        })
       })
-    })
+    ).json()
   }
 
   async getProductDetails (productUid: string) {
-    return this.fetch(`/v3/products/${productUid}`)
+    return (await this.fetch(`/v3/products/${productUid}`)).json()
   }
 
   async getProductCoverDimensions (productUid: string, pageCount?: number) {
     let url = `/v3/products/${productUid}/cover-dimensions`
     if (pageCount) url += `?pageCount=${pageCount}`
-    return this.fetch(url)
+    return (await this.fetch(url)).json()
   }
 
   async getProductPrices (productUid: string) {
-    return this.fetch(`/v3/products/${productUid}/prices`)
+    return (await this.fetch(`/v3/products/${productUid}/prices`)).json()
   }
 
   async getStockAvailability (products: string[]) {
-    return this.fetch('/v3/stock/region-availability', {
-      method: 'POST',
-      body: JSON.stringify({ products })
-    })
+    return (
+      await this.fetch('/v3/stock/region-availability', {
+        method: 'POST',
+        body: JSON.stringify({ products })
+      })
+    ).json()
   }
 
   async getShipmentMethods () {
-    return this.fetch('https://shipment.gelatoapis.com/v1/shipment-methods')
+    return fetch('https://shipment.gelatoapis.com/v1/shipment-methods', {
+      headers: {
+        'X-API-KEY': this.apiKey
+      }
+    }).then(r => r.json())
   }
 
-  async getProducts (): Promise<GelatoProduct[]> {
-    try {
-      const catalogsResponse = await this.getCatalogs()
-      const catalogs: any[] = Array.isArray(catalogsResponse)
-        ? catalogsResponse
-        : catalogsResponse.data || catalogsResponse.catalogs
-
-      if (!catalogs || (Array.isArray(catalogs) && catalogs.length === 0)) {
-        throw new Error('Aucun catalogue retourné par l’API')
-      }
-
-      // On cible ici les catalogues "t-shirts" et "canvas"
-      const targetCatalogUids = ['canvas']
-      const targetCatalogs = catalogs.filter((c: any) =>
-        targetCatalogUids.includes(c.catalogUid)
-      )
-      if (!targetCatalogs || targetCatalogs.length === 0) {
-        throw new Error(
-          `Aucun catalogue correspondant aux catalogues cibles (${targetCatalogUids.join(
-            ', '
-          )}) n'a été trouvé`
-        )
-      }
-
-      let combinedProducts: GelatoProduct[] = []
-      for (const targetCatalog of targetCatalogs) {
-        const catalogUid = targetCatalog.catalogUid
-        const searchResponse = await this.searchProducts(catalogUid, {
-          Orientation: ['hor', 'ver']
-        })
-        const products = searchResponse.products
-        if (!products || products.length === 0) {
-          console.warn(`Aucun produit retourné pour le catalogue ${catalogUid}`)
-          continue
-        }
-        const productsWithDetails = await Promise.all(
-          products.map(async (product: any) => {
-            const details = await this.getProductDetails(product.productUid)
-            const prices = await this.getProductPrices(product.productUid)
-            return {
-              productUid: product.productUid,
-              name: targetCatalog.title || catalogUid,
-              description: `Produit ${targetCatalog.title}`,
-              category: catalogUid,
-              attributes: details.attributes,
-              variants: prices.map((price: any) => ({
-                id: `${product.productUid}-${price.quantity}`,
-                sku: product.productUid,
-                size: details.attributes?.UnifiedCanvasFormat || 'Standard',
-                color: details.attributes?.ColorType || 'White',
-                price: price.price
-              })),
-              supportedCountries: details.supportedCountries || []
-            }
-          })
-        )
-        combinedProducts = combinedProducts.concat(productsWithDetails)
-      }
-
-      return combinedProducts
-    } catch (error) {
-      console.error('Error fetching products:', error)
-      throw new Error('Erreur lors de la récupération des produits')
-    }
-  }
-
-  async createOrder (order: GelatoOrder) {
-    try {
-      return await this.fetch('https://order.gelatoapis.com/v4/orders', {
-        method: 'POST',
-        body: JSON.stringify(order)
+  async getProducts (userCountry: string): Promise<GelatoProduct[]> {
+    const catalogsResponse = await this.getCatalogs()
+    const catalogs: any[] = Array.isArray(catalogsResponse)
+      ? catalogsResponse
+      : catalogsResponse.data || catalogsResponse.catalogs
+    const targetCatalogUids = ['canvas']
+    const targetCatalogs = catalogs.filter((c: any) =>
+      targetCatalogUids.includes(c.catalogUid)
+    )
+    let combinedProducts: GelatoProduct[] = []
+    for (const targetCatalog of targetCatalogs) {
+      const catalogUid = targetCatalog.catalogUid
+      const searchResponse = await this.searchProducts(catalogUid, {
+        Orientation: ['hor', 'ver']
       })
-    } catch (error) {
-      console.error('Error creating order:', error)
-      throw new Error('Échec de la création de la commande')
+      const products = searchResponse.products
+      if (!products) continue
+      const productsWithDetails = await Promise.all(
+        products.map(async (product: any) => {
+          const details = await this.getProductDetails(product.productUid)
+          const prices = await this.getProductPrices(product.productUid)
+          return {
+            productUid: product.productUid,
+            name: targetCatalog.title || catalogUid,
+            description: `Produit ${targetCatalog.title}`,
+            category: catalogUid,
+            attributes: details.attributes,
+            variants: prices.map((price: any) => ({
+              id: `${product.productUid}-${price.quantity}`,
+              sku: product.productUid,
+              size: details.attributes?.UnifiedCanvasFormat || 'Standard',
+              color: details.attributes?.ColorType || 'White',
+              price: price.price
+            })),
+            supportedCountries: details.supportedCountries || []
+          }
+        })
+      )
+      combinedProducts = combinedProducts.concat(productsWithDetails)
     }
+    const filteredProducts = combinedProducts.filter(product =>
+      product.supportedCountries.includes(userCountry)
+    )
+    return filteredProducts
+  }
+
+  async createOrder (gelatoOrder: any) {
+    const response = await fetch('https://order.gelatoapis.com/v4/orders', {
+      method: 'POST',
+      headers: {
+        'X-API-KEY': this.apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(gelatoOrder)
+    })
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.message || 'Gelato createOrder failed')
+    }
+    return response.json()
   }
 }
 

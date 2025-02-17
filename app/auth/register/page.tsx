@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import ReactFlagsSelect from 'react-flags-select'
 
 export default function RegisterPage () {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedCountry, setSelectedCountry] = useState<string>('FR') // Par défaut, France
 
   async function handleSubmit (event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -25,8 +27,8 @@ export default function RegisterPage () {
     const fullName = formData.get('fullName') as string
 
     if (password !== confirmPassword) {
-      toast.error('Passwords do not match')
-      setError('Passwords do not match')
+      toast.error('Les mots de passe ne correspondent pas')
+      setError('Les mots de passe ne correspondent pas')
       setIsLoading(false)
       return
     }
@@ -37,7 +39,8 @@ export default function RegisterPage () {
       password,
       options: {
         data: {
-          full_name: fullName
+          full_name: fullName,
+          country: selectedCountry
         }
       }
     })
@@ -49,33 +52,35 @@ export default function RegisterPage () {
     }
 
     if (!authData.user) {
-      toast.error('User creation failed. Try again.')
+      toast.error("La création de l'utilisateur a échoué. Veuillez réessayer.")
       setIsLoading(false)
       return
     }
 
     // Redirection (demander de vérifier l'e-mail si nécessaire)
     toast.info(
-      'Thanks for signin up! Please check your email to confirm your account.'
+      'Merci pour votre inscription ! Veuillez vérifier votre e-mail pour confirmer votre compte.'
     )
     router.push('/auth/login')
   }
 
   return (
     <div className='min-h-[calc(100vh-3.5rem)] flex items-center justify-center py-8'>
-      <div className='container mx-auto max-w-[350px] px-4'>
-        <div className='flex flex-col space-y-6'>
-          <div className='flex flex-col space-y-2 text-center'>
-            <h1 className='text-2xl font-semibold tracking-tight'>
-              Create an account
-            </h1>
-            <p className='text-sm text-muted-foreground'>
-              Enter your details to create your account
+      <div className='container mx-auto max-w-lg px-4'>
+        <div className=' shadow-lg rounded-lg p-6 space-y-6'>
+          <div className='text-center'>
+            <h1 className='text-2xl font-semibold'>Créer un compte</h1>
+            <p className='text-sm text-gray-500'>
+              Entrez vos informations pour créer votre compte
             </p>
           </div>
-          <form onSubmit={handleSubmit} className='space-y-4'>
+
+          <form
+            onSubmit={handleSubmit}
+            className='grid grid-cols-1 md:grid-cols-2 gap-4'
+          >
             <div className='space-y-2'>
-              <Label htmlFor='fullName'>Full Name</Label>
+              <Label htmlFor='fullName'>Nom complet</Label>
               <Input
                 id='fullName'
                 name='fullName'
@@ -100,7 +105,7 @@ export default function RegisterPage () {
               />
             </div>
             <div className='space-y-2'>
-              <Label htmlFor='password'>Password</Label>
+              <Label htmlFor='password'>Mot de passe</Label>
               <Input
                 id='password'
                 name='password'
@@ -110,7 +115,7 @@ export default function RegisterPage () {
               />
             </div>
             <div className='space-y-2'>
-              <Label htmlFor='confirmPassword'>Confirm Password</Label>
+              <Label htmlFor='confirmPassword'>Confirmer le mot de passe</Label>
               <Input
                 id='confirmPassword'
                 name='confirmPassword'
@@ -119,17 +124,53 @@ export default function RegisterPage () {
                 required
               />
             </div>
-            {error && <p className='text-sm text-red-500'>{error}</p>}
-            <Button className='w-full' type='submit' disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Create Account'}
-            </Button>
+            <div className='md:col-span-2 space-y-2'>
+              <Label htmlFor='country'>Pays</Label>
+              <ReactFlagsSelect
+                selected={selectedCountry}
+                onSelect={code => setSelectedCountry(code)}
+                countries={[
+                  'US',
+                  'GB',
+                  'FR',
+                  'DE',
+                  'IT',
+                  'ES',
+                  'CA',
+                  'AU',
+                  'JP',
+                  'CN',
+                  'BR',
+                  'IN',
+                  'RU',
+                  'KR',
+                  'MX'
+                ]}
+                searchable
+                className='menu-flags'
+                selectButtonClassName='menu-flags-button'
+                searchPlaceholder='Rechercher un pays'
+                disabled={isLoading}
+              />
+            </div>
+
+            {error && (
+              <p className='text-sm text-red-500 md:col-span-2'>{error}</p>
+            )}
+
+            <div className='md:col-span-2'>
+              <Button className='w-full' type='submit' disabled={isLoading}>
+                {isLoading ? 'Création du compte...' : 'Créer un compte'}
+              </Button>
+            </div>
           </form>
-          <p className='px-8 text-center text-sm text-muted-foreground'>
+
+          <p className='text-center text-sm text-muted-foreground'>
             <Link
               href='/auth/login'
               className='hover:text-brand underline underline-offset-4'
             >
-              Already have an account? Sign In
+              Vous avez déjà un compte ? Connectez-vous
             </Link>
           </p>
         </div>

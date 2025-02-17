@@ -80,3 +80,43 @@
     @apply bg-background text-foreground;
   }
 }
+
+.menu-flags-button {
+  @apply bg-black text-white;
+}
+
+.menu-flags-button:hover {
+  @apply bg-black/80 text-white;
+}
+
+.menu-flags {
+  @apply bg-black text-white;
+}
+
+.menu-flags:hover {
+  @apply bg-black/80 text-white;
+}
+
+.ReactFlagsSelect-module_selectOptionValue__vS99- {
+  @apply bg-black text-white !important;
+}
+
+.ReactFlagsSelect-module_selectOption__3pcgW {
+  @apply bg-black text-white !important;
+}
+
+.ReactFlagsSelect-module_selectOptions__3LNBJ {
+  @apply bg-black text-white !important;
+}
+
+.ReactFlagsSelect-module_filterBox__3m8EU {
+  @apply bg-black text-white !important;
+}
+
+.ReactFlagsSelect-module_label__27pw9 {
+  @apply text-white !important;
+}
+
+.menu-flags-disabled {
+  @apply bg-black text-white !important;
+}

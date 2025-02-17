@@ -16,3 +16,8 @@ export const countries = [
   { code: 'MX', name: 'Mexico' }
   // Add more countries as needed
 ]
+
+export function getCountryName (code: string) {
+  const country = countries.find(c => c.code === code)
+  return country?.name || 'Unknown'
+}

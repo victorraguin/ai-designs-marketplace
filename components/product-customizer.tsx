@@ -149,7 +149,13 @@ export function ProductCustomizer ({
   }
 
   const handleCreateOrder = () => {
-    if (!canvas || !designImgRef.current || products.length === 0) return
+    console.log('handleCreateOrder')
+    console.log(canvas)
+    console.log(designImgRef.current)
+    console.log(products)
+    if (!canvas || !designImgRef || products.length === 0) return
+
+    console.log('hello')
 
     const img = designImgRef.current
     const printArea = {
@@ -159,6 +165,8 @@ export function ProductCustomizer ({
       y: img.top,
       rotation: img.angle
     }
+
+    console.log(printArea)
 
     onCustomizationComplete({
       variant: products[0].variants[0],
