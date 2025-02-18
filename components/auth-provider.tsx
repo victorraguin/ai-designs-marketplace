@@ -24,63 +24,63 @@ export function AuthProvider ({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const fetchProfile = async (user: User) => {
-      // Vérifier si l'utilisateur existe déjà dans user_profiles
-      const { data: existingProfile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single()
+  const fetchProfile = async (user: User) => {
+    // Vérifier si l'utilisateur existe déjà dans user_profiles
+    const { data: existingProfile, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single()
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error)
-        return
-      }
-
-      if (!existingProfile) {
-        // Insérer l'utilisateur dans user_profiles si non existant
-        const { error: insertError } = await supabase
-          .from('user_profiles')
-          .insert([
-            {
-              user_id: user.id,
-              email: user.email,
-              full_name: user.user_metadata.full_name || ''
-            }
-          ])
-
-        if (insertError) {
-          console.error('Error inserting user profile:', insertError)
-        }
-      } else {
-        setProfile(existingProfile)
-      }
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching profile:', error)
+      return
     }
 
-    const loadSession = async () => {
-      const { data: sessionData } = await supabase.auth.getSession()
-      const sessionUser = sessionData?.session?.user ?? null
-      setUser(sessionUser)
+    if (!existingProfile) {
+      // Insérer l'utilisateur dans user_profiles si non existant
+      const { error: insertError } = await supabase
+        .from('user_profiles')
+        .insert([
+          {
+            user_id: user.id,
+            email: user.email,
+            full_name: user.user_metadata.full_name || ''
+          }
+        ])
 
-      if (sessionUser) {
-        await fetchProfile(sessionUser)
+      if (insertError) {
+        console.error('Error inserting user profile:', insertError)
       }
+    } else {
+      setProfile(existingProfile)
+    }
+  }
 
-      setLoading(false)
+  useEffect(() => {
+    const loadSession = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      setUser(session?.user ?? null)
+
+      if (session?.user) {
+        await fetchProfile(session.user)
+        setLoading(false)
+      } else {
+        setLoading(false)
+      }
     }
 
     loadSession()
 
-    // Écouter les changements d'authentification
     const {
       data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const sessionUser = session?.user ?? null
-      setUser(sessionUser)
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null)
 
-      if (sessionUser) {
-        await fetchProfile(sessionUser)
+      if (session?.user) {
+        await fetchProfile(session.user)
       } else {
         setProfile(null)
       }

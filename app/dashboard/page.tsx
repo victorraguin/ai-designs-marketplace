@@ -72,7 +72,7 @@ export default function DashboardPage () {
     total_views: 0,
     total_orders: 0
   })
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [sortBy, setSortBy] = useState('newest')
@@ -85,20 +85,23 @@ export default function DashboardPage () {
     country: '' // Ajout du champ country
   })
   const itemsPerPage = 8
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
   useEffect(() => {
-    if (!user) {
+    // On attend que loading soit terminé pour décider
+    if (!loading && !user) {
       router.push('/auth/login')
       return
     }
-    loadData()
-    loadProfile()
-  }, [user, page, sortBy, filterStatus])
+    if (!loading && user) {
+      loadData()
+      loadProfile()
+    }
+  }, [loading, user, page, sortBy, filterStatus])
 
   async function loadData () {
     if (!user) return
-    setLoading(true)
+    setIsLoading(true)
 
     try {
       // Charger les stats
@@ -174,7 +177,7 @@ export default function DashboardPage () {
       toast.error('Error loading dashboard data')
       console.error(error)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 

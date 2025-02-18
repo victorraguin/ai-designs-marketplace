@@ -39,6 +39,7 @@ export default function CreatePage () {
   const router = useRouter()
   const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState<Step>('style')
+  const [isUploaded, setIsUploaded] = useState(false)
   const [designOptions, setDesignOptions] = useState<DesignOptions>({
     tshirtColor: '#000000',
     designText: null,
@@ -51,6 +52,7 @@ export default function CreatePage () {
   const [generatedImages, setGeneratedImages] = useState<GeneratedDesign[]>([])
   const [zoomedImage, setZoomedImage] = useState<string | null>(null)
   const [processedImage, setProcessedImage] = useState<string | null>(null)
+  const [uploaded, setUploaded] = useState(false)
 
   useEffect(() => {
     if (!user) {
@@ -127,31 +129,44 @@ export default function CreatePage () {
       if (!response.ok) throw new Error('Generation failed')
       const body = await response.json()
 
+      console.log('body', body)
+
       // Récupérer les URLs éphémères
       const ephemeralUrls = body.data.map((item: any) => item.url)
+
+      console.log('ephemeralUrls', ephemeralUrls)
 
       // Mettre à jour immédiatement le state pour affichage
       const ephemeralImages = ephemeralUrls.map((url: string) => ({
         url,
         designId: null
       }))
+
+      console.log('ephemeralImages', ephemeralImages)
       setGeneratedImages(ephemeralImages)
+
+      console.log('generatedImages', generatedImages)
 
       // Ici, on passe immédiatement à l'étape de validation et on libère le chargement pour l'utilisateur
       setCurrentStep('validation')
+      console.log('currentStep', currentStep)
       setLoading(false)
 
       // Ensuite, en arrière-plan, on lance le traitement pour l'upload et l'insertion en DB.
       // On récupère l'ID utilisateur
-      const userResponse = await supabase.auth.getUser()
-      const userId = userResponse.data.user?.id
-      if (!userId) throw new Error('User not authenticated')
+      const userId = user?.id
+      if (!userId) {
+        throw new Error('User not authenticated')
+      }
+
+      console.log('go promise')
 
       // Traiter chaque image en parallèle
       await Promise.all(
         ephemeralUrls.map(async (imageUrl: string) => {
-          const storagePath = `app/${userId}/generated/${Date.now()}.png`
+          const storagePath = `${userId}/generated/${Date.now()}.png`
           const uploadedUrl = await uploadImageToStorage(imageUrl, storagePath)
+          console.log('Uploaded URL', uploadedUrl)
 
           // Insérer en DB avec status "created"
           const { data, error } = await supabase
@@ -165,15 +180,19 @@ export default function CreatePage () {
               }
             ])
             .select('id')
+
+          console.log('data', data)
           if (error) {
             console.error('DB insertion error for image:', imageUrl, error)
           } else {
+            console.log('data insérée', data)
             // Mettre à jour les IDs des designs générés en background
             setGeneratedImages(prev =>
               prev.map(img =>
                 img.url === imageUrl ? { ...img, designId: data?.[0]?.id } : img
               )
             )
+            setIsUploaded(true)
           }
         })
       )
@@ -238,17 +257,24 @@ export default function CreatePage () {
           imageUrl
         )}`
       )
+      console.log('response', response)
       const blob = await response.blob()
+      console.log('blob', blob)
 
       const { data, error } = await supabase.storage
         .from('designs')
         .upload(path, blob)
+
+      console.log('data', data)
+      console.log('error', error)
       if (error) throw error
 
       // Récupérer l'URL publique
       const { data: publicUrl } = supabase.storage
         .from('designs')
         .getPublicUrl(data.path)
+      console.log('publicUrl', publicUrl)
+
       return publicUrl.publicUrl
     } catch (error) {
       console.error('Image upload failed:', error)
@@ -346,7 +372,7 @@ export default function CreatePage () {
                   </Button>
                   <Button
                     onClick={() => handleDescriptionSubmit(lastDescription)}
-                    disabled={!lastDescription.trim()}
+                    disabled={uploaded}
                   >
                     Generate Design
                   </Button>
@@ -380,6 +406,7 @@ export default function CreatePage () {
                         </Button>
                         <Button
                           onClick={() => handleImageValidation(image.url)}
+                          disabled={!isUploaded}
                         >
                           Select Design
                         </Button>
