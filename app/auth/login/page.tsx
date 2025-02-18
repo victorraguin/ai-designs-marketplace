@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage () {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   async function handleSubmit (event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -35,12 +37,12 @@ export default function LoginPage () {
     }
 
     if (authData.user) {
-      const userId = authData.user.id // Correctement récupérer l'ID de l'utilisateur
+      const userId = authData.user.id
 
       const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('user_id', userId) // ✅ Utiliser 'user_id' au lieu de 'id'
+        .eq('user_id', userId)
         .single()
 
       if (profileError && profileError.code === 'PGRST116') {
@@ -67,8 +69,6 @@ export default function LoginPage () {
     }
 
     toast.success('Logged in successfully!')
-
-    // Redirect to the original destination or dashboard
     const redirectTo = searchParams.get('redirectTo') || '/dashboard'
     router.push(redirectTo)
     router.refresh()
@@ -102,15 +102,28 @@ export default function LoginPage () {
                 required
               />
             </div>
-            <div className='space-y-2'>
+            <div className='space-y-2 relative'>
               <Label htmlFor='password'>Password</Label>
               <Input
                 id='password'
                 name='password'
-                type='password'
+                type={showPassword ? 'text' : 'password'}
                 disabled={isLoading}
                 required
               />
+              <div className='absolute inset-y-0 right-0 top-6 pr-3 flex items-center'>
+                {showPassword ? (
+                  <EyeOff
+                    className='h-5 w-5 cursor-pointer'
+                    onClick={() => setShowPassword(!showPassword)}
+                  />
+                ) : (
+                  <Eye
+                    className='h-5 w-5 cursor-pointer'
+                    onClick={() => setShowPassword(!showPassword)}
+                  />
+                )}
+              </div>
             </div>
             <Button className='w-full' type='submit' disabled={isLoading}>
               {isLoading ? 'Signing in...' : 'Sign In'}
@@ -121,7 +134,7 @@ export default function LoginPage () {
               href='/auth/register'
               className='hover:text-brand underline underline-offset-4'
             >
-              Don&apos;t have an account? Sign Up
+              Don't have an account? Sign Up
             </Link>
           </p>
         </div>

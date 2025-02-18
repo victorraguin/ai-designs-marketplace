@@ -11,18 +11,7 @@ import { toast } from 'sonner'
 export function Header () {
   const pathname = usePathname()
   const router = useRouter()
-  const { user } = useAuth()
-
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut()
-      toast.success('Signed out successfully')
-      router.push('/')
-      router.refresh()
-    } catch (error) {
-      toast.error('Error signing out')
-    }
-  }
+  const { user, signOut } = useAuth()
 
   return (
     <header className='sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60'>
@@ -137,7 +126,7 @@ export function Header () {
                 </Button>
               </>
             ) : (
-              <Button variant='ghost' onClick={handleSignOut}>
+              <Button variant='ghost' onClick={signOut}>
                 Sign out
               </Button>
             )}

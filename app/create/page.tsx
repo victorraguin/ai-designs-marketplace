@@ -56,7 +56,7 @@ export default function CreatePage () {
 
   useEffect(() => {
     if (!user) {
-      router.push('/auth/login?redirectTo=/create')
+      router.push('/auth/register?redirectTo=/create')
     }
   }, [user, router])
 

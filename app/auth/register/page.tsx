@@ -9,12 +9,31 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import ReactFlagsSelect from 'react-flags-select'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function RegisterPage () {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedCountry, setSelectedCountry] = useState<string>('FR') // Par défaut, France
+  const [selectedCountry, setSelectedCountry] = useState<string>('FR') // Default: France
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState<string>('')
+
+  // Simple password strength check:
+  // Must be at least 8 characters and include uppercase, lowercase, number, and special character.
+  const checkPasswordStrength = (password: string) => {
+    const regex =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+    if (!password) {
+      return ''
+    }
+    if (regex.test(password)) {
+      return 'strong'
+    } else {
+      return 'weak'
+    }
+  }
 
   async function handleSubmit (event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -27,13 +46,25 @@ export default function RegisterPage () {
     const fullName = formData.get('fullName') as string
 
     if (password !== confirmPassword) {
-      toast.error('Les mots de passe ne correspondent pas')
-      setError('Les mots de passe ne correspondent pas')
+      toast.error('Passwords do not match')
+      setError('Passwords do not match')
       setIsLoading(false)
       return
     }
 
-    // Création de l'utilisateur dans auth.users
+    // Check password strength
+    const strength = checkPasswordStrength(password)
+    setPasswordStrength(strength)
+    if (strength === 'weak') {
+      toast.error('Password is not strong enough')
+      setError(
+        'Password is not strong enough. It must be at least 8 characters long and include uppercase, lowercase, a number, and a special character.'
+      )
+      setIsLoading(false)
+      return
+    }
+
+    // Create the user in auth.users
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -52,14 +83,14 @@ export default function RegisterPage () {
     }
 
     if (!authData.user) {
-      toast.error("La création de l'utilisateur a échoué. Veuillez réessayer.")
+      toast.error('User creation failed. Please try again.')
       setIsLoading(false)
       return
     }
 
-    // Redirection (demander de vérifier l'e-mail si nécessaire)
+    // Redirect (and ask to verify email if necessary)
     toast.info(
-      'Merci pour votre inscription ! Veuillez vérifier votre e-mail pour confirmer votre compte.'
+      'Thank you for registering! Please check your email to confirm your account.'
     )
     router.push('/auth/login')
   }
@@ -67,11 +98,11 @@ export default function RegisterPage () {
   return (
     <div className='min-h-[calc(100vh-3.5rem)] flex items-center justify-center py-8'>
       <div className='container mx-auto max-w-lg px-4'>
-        <div className=' shadow-lg rounded-lg p-6 space-y-6'>
+        <div className='shadow-lg rounded-lg p-6 space-y-6'>
           <div className='text-center'>
-            <h1 className='text-2xl font-semibold'>Créer un compte</h1>
+            <h1 className='text-2xl font-semibold'>Create an account</h1>
             <p className='text-sm text-gray-500'>
-              Entrez vos informations pour créer votre compte
+              Enter your information to create an account
             </p>
           </div>
 
@@ -80,7 +111,7 @@ export default function RegisterPage () {
             className='grid grid-cols-1 md:grid-cols-2 gap-4'
           >
             <div className='space-y-2'>
-              <Label htmlFor='fullName'>Nom complet</Label>
+              <Label htmlFor='fullName'>Full Name</Label>
               <Input
                 id='fullName'
                 name='fullName'
@@ -104,28 +135,63 @@ export default function RegisterPage () {
                 required
               />
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='password'>Mot de passe</Label>
+            <div className='space-y-2 relative'>
+              <Label htmlFor='password'>Password</Label>
               <Input
                 id='password'
                 name='password'
-                type='password'
+                type={showPassword ? 'text' : 'password'}
                 disabled={isLoading}
                 required
+                onChange={e =>
+                  setPasswordStrength(checkPasswordStrength(e.target.value))
+                }
               />
+              <div className='absolute inset-y-0 right-0 pr-3  top-6 flex items-center'>
+                {showPassword ? (
+                  <EyeOff
+                    className='h-5 w-5 cursor-pointer'
+                    onClick={() => setShowPassword(!showPassword)}
+                  />
+                ) : (
+                  <Eye
+                    className='h-5 w-5 cursor-pointer'
+                    onClick={() => setShowPassword(!showPassword)}
+                  />
+                )}
+              </div>
+              {passwordStrength && passwordStrength === 'weak' && (
+                <p className='text-xs text-red-500 mt-1'>
+                  Must be at least 8 characters long and include uppercase,
+                  lowercase, number, and special character.
+                </p>
+              )}
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='confirmPassword'>Confirmer le mot de passe</Label>
+            <div className='space-y-2 relative'>
+              <Label htmlFor='confirmPassword'>Confirm Password</Label>
               <Input
                 id='confirmPassword'
                 name='confirmPassword'
-                type='password'
+                type={showConfirmPassword ? 'text' : 'password'}
                 disabled={isLoading}
                 required
               />
+              <div className='absolute inset-y-0 right-0 pr-3  top-6 flex items-center'>
+                {showConfirmPassword ? (
+                  <EyeOff
+                    className='h-5 w-5 cursor-pointer'
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  />
+                ) : (
+                  <Eye
+                    className='h-5 w-5 cursor-pointer'
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  />
+                )}
+              </div>
             </div>
             <div className='md:col-span-2 space-y-2'>
-              <Label htmlFor='country'>Pays</Label>
+              <Label htmlFor='country'>Country</Label>
               <ReactFlagsSelect
                 selected={selectedCountry}
                 onSelect={code => setSelectedCountry(code)}
@@ -149,7 +215,7 @@ export default function RegisterPage () {
                 searchable
                 className='menu-flags'
                 selectButtonClassName='menu-flags-button'
-                searchPlaceholder='Rechercher un pays'
+                searchPlaceholder='Search a country'
                 disabled={isLoading}
               />
             </div>
@@ -160,7 +226,7 @@ export default function RegisterPage () {
 
             <div className='md:col-span-2'>
               <Button className='w-full' type='submit' disabled={isLoading}>
-                {isLoading ? 'Création du compte...' : 'Créer un compte'}
+                {isLoading ? 'Creating account...' : 'Create Account'}
               </Button>
             </div>
           </form>
@@ -170,7 +236,7 @@ export default function RegisterPage () {
               href='/auth/login'
               className='hover:text-brand underline underline-offset-4'
             >
-              Vous avez déjà un compte ? Connectez-vous
+              Already have an account? Sign In
             </Link>
           </p>
         </div>

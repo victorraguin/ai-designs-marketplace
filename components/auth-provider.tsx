@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { Database } from '@/types/supabase'
+import { useRouter } from 'next/navigation'
 
 type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 
@@ -11,18 +12,21 @@ interface AuthContextType {
   user: User | null
   profile: UserProfile | null
   loading: boolean
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
-  loading: true
+  loading: true,
+  signOut: async () => {}
 })
 
 export function AuthProvider ({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   const fetchProfile = async (user: User) => {
     // Vérifier si l'utilisateur existe déjà dans user_profiles
@@ -54,6 +58,19 @@ export function AuthProvider ({ children }: { children: React.ReactNode }) {
       }
     } else {
       setProfile(existingProfile)
+    }
+  }
+
+  // ✅ Ajout de la fonction `signOut` qui met `user` à null immédiatement
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      setUser(null) // Met à jour immédiatement pour éviter un état obsolète
+      setProfile(null)
+      router.push('/')
+      router.refresh()
+    } catch (error) {
+      console.error('Error signing out:', error)
     }
   }
 
@@ -92,7 +109,7 @@ export function AuthProvider ({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   )
