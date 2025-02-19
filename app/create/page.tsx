@@ -164,7 +164,7 @@ export default function CreatePage () {
       // Traiter chaque image en parallèle
       await Promise.all(
         ephemeralUrls.map(async (imageUrl: string) => {
-          const storagePath = `${userId}/generated/${Date.now()}.png`
+          const storagePath = `app/${userId}/generated/${Date.now()}.png`
           const uploadedUrl = await uploadImageToStorage(imageUrl, storagePath)
           console.log('Uploaded URL', uploadedUrl)
 

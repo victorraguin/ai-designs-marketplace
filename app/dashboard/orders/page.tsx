@@ -76,7 +76,7 @@ export default function OrdersPage () {
   async function loadOrders () {
     try {
       const { data, error } = await supabase
-        .from('gelato_orders')
+        .from('orders')
         .select(
           `
           *,
@@ -85,6 +85,8 @@ export default function OrdersPage () {
         `
         )
         .order('created_at', { ascending: false })
+
+      console.log('ordersData', data)
 
       if (error) throw error
       setOrders(data || [])

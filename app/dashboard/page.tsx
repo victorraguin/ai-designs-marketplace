@@ -53,6 +53,14 @@ interface Order {
   order_status: string
   created_at: string
   design?: Design
+  gelato_order_id: string
+  tracking_code: string
+  tracking_url: string
+  shipment_method_name: string
+  shipment_method_uid: string
+  production_country: string
+  production_state_province: string
+  production_facility_id: string
 }
 
 interface Stats {
@@ -115,6 +123,8 @@ export default function DashboardPage () {
         .select('*', { count: 'exact' })
         .eq('buyer_id', user.id)
 
+      console.log('orders', orders)
+
       if (designStats) {
         setStats({
           total_designs: designStats.length,
@@ -171,6 +181,8 @@ export default function DashboardPage () {
         .select(`*, design:designs(*)`)
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
+
+      console.log('ordersData', ordersData)
 
       setOrders(ordersData || [])
     } catch (error: any) {
@@ -470,6 +482,19 @@ export default function DashboardPage () {
                             {order.order_status}
                           </Badge>
                         </div>
+                        {order.tracking_code && order.tracking_url && (
+                          <p className='text-sm mt-1'>
+                            <strong>Tracking:</strong>{' '}
+                            <a
+                              href={order.tracking_url}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='underline text-blue-600'
+                            >
+                              {order.tracking_code}
+                            </a>
+                          </p>
+                        )}
                         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                           <div>
                             <p className='text-sm font-medium'>Product Type</p>

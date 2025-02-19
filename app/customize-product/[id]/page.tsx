@@ -175,12 +175,13 @@ export default function CustomizeProductPage () {
     console.log('run order', data)
     try {
       // Create Gelato order
-      const gelatoOrder = await fetch('/api/gelato/order', {
+      const gelatoOrderResponse = await fetch('/api/gelato/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderType: 'order',
           currency: 'EUR',
+          orderReferenceId: `order-${user.id}-${Date.now()}`,
           items: [
             {
               productUid: data.variant.sku,
@@ -209,9 +210,11 @@ export default function CustomizeProductPage () {
           }
         })
       })
-      if (!gelatoOrder.ok) {
+      if (!gelatoOrderResponse.ok) {
         throw new Error('Error creating Gelato order')
       }
+
+      const gelatoOrderData = await gelatoOrderResponse.json()
       // Create order in database
       const { error: orderError } = await supabase.from('orders').insert([
         {
@@ -219,7 +222,8 @@ export default function CustomizeProductPage () {
           buyer_id: user.id,
           product_type: data.variant.sku,
           total_amount: data.variant.price,
-          order_status: 'pending'
+          order_status: gelatoOrderData.fulfillmentStatus ?? 'pending',
+          gelato_order_id: gelatoOrderData.id
         }
       ])
       console.log(orderError)
