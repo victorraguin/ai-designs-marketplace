@@ -117,7 +117,7 @@ export default function CreatePage () {
             image_request: {
               prompt: finalPrompt,
               model: 'V_2_TURBO',
-              style_type: 'DESIGN',
+              style_type: 'AUTO',
               magic_prompt_option: 'ON',
               num_images: 2,
               size: '1024x1024'
