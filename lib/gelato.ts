@@ -10,8 +10,38 @@ export interface GelatoProduct {
   attributes: Record<string, string>
   variants: GelatoVariant[]
   supportedCountries: string[]
+  coverDimensions?: GelatoCoverDimensions
+  productDimensions?: GelatoProductDimensions
 }
 
+export interface GelatoCoverDimensions {
+  productUid: string
+  pagesCount: number
+  measureUnit: string
+  wraparoundInsideSize?: DimensionAttributes
+  wraparoundEdgeSize?: DimensionAttributes
+  contentBackSize?: DimensionAttributes
+  jointBackSize?: DimensionAttributes
+  spineSize?: DimensionAttributes
+  jointFrontSize?: DimensionAttributes
+  contentFrontSize?: DimensionAttributes
+  bleedSize?: DimensionAttributes
+}
+
+export interface GelatoProductDimensions {
+  [key: string]: {
+    value: string
+    measureUnit: string
+  }
+}
+
+export interface DimensionAttributes {
+  width: number
+  height: number
+  left: number
+  top: number
+  thickness?: number
+}
 export interface GelatoVariant {
   id: string
   sku: string

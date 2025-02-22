@@ -1,7 +1,8 @@
+// File: app/customize-product/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Accordion,
@@ -9,7 +10,6 @@ import {
   AccordionItem,
   AccordionTrigger
 } from '@/components/ui/accordion'
-import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -24,22 +24,68 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip'
-import { Loader2, Truck } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { AlertCircle, Loader2, Truck } from 'lucide-react'
+import { createClient } from '@/utils/supabase/client'
 import { GelatoProduct } from '@/lib/gelato'
 import { useAuth } from '@/components/auth-provider'
 import { ProductCustomizer } from '@/components/product-customizer'
 import { toast } from 'sonner'
-import { getCountryName } from '@/lib/countries'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { AddressSelector } from '@/components/address-selector'
 
+const supabase = createClient()
+
+// --- Types ---
 interface Design {
   id: string
   image_url: string
   prompt: string
 }
 
-// Utilitaire pour récupérer un emoji de drapeau à partir du code pays (ex. 'FR' -> 🇫🇷)
-function getFlagEmoji (countryCode: string) {
+interface ShippingAddress {
+  id: string
+  is_default: boolean
+  first_name: string
+  last_name: string
+  company_name: string | null
+  address_line1: string
+  address_line2: string | null
+  city: string
+  state: string | null
+  post_code: string
+  country: string
+  email: string
+  phone: string | null
+}
+
+// --- Constants & Helpers ---
+const TRANSLATIONS = {
+  formats: {
+    '200x200-mm-8x8-inch': '20x20cm / 8x8 "',
+    '11x14-inch-270x350-mm': '27x35cm / 11x14"',
+    '12x12-inch-300x300-mm': '30x30cm / 12x12"',
+    '12x16-inch-300x400-mm': '30x40cm / 12x16"',
+    '12x18-inch-300x450-mm': '30x45cm / 12x18"',
+    '12x24-inch-300x600-mm': '30x60cm / 12x24"',
+    '12x36-inch-300x900-mm': '30x90cm / 12x36"',
+    '12x40-inch-300x1000-mm': '30x100cm / 12x40"',
+    '16x16-inch-400x400-mm': '40x40cm / 16x16"',
+    '16x20-inch-400x500-mm': '40x50cm / 16x20"',
+    '16x24-inch-400x600-mm': '40x60cm / 16x24"',
+    '16x32-inch-400x800-mm': '40x80cm / 16x32"',
+    '18x24-inch-450x600-mm': '45x60cm / 18x24"'
+  } as Record<string, string>,
+  orientations: {
+    hor: 'Horizontal',
+    ver: 'Vertical'
+  } as Record<string, string>,
+  thicknesses: {
+    'wood-fsc-slim': 'Slim (2cm)',
+    'wood-fsc-thick': 'Thick (4cm)'
+  } as Record<string, string>
+}
+
+const getFlagEmoji = (countryCode: string) => {
   if (!countryCode) return '🏳️'
   const codePoints = countryCode
     .toUpperCase()
@@ -48,41 +94,20 @@ function getFlagEmoji (countryCode: string) {
   return String.fromCodePoint(...codePoints)
 }
 
-// Format translations with metric and imperial units
-const formatTranslations: { [key: string]: string } = {
-  '200x200-mm-8x8-inch': '20x20cm / 8x8 "',
-  '11x14-inch-270x350-mm': '27x35cm / 11x14"',
-  '12x12-inch-300x300-mm': '30x30cm / 12x12"',
-  '12x16-inch-300x400-mm': '30x40cm / 12x16"',
-  '12x18-inch-300x450-mm': '30x45cm / 12x18"',
-  '12x24-inch-300x600-mm': '30x60cm / 12x24"',
-  '12x36-inch-300x900-mm': '30x90cm / 12x36"',
-  '12x40-inch-300x1000-mm': '30x100cm / 12x40"',
-  '16x16-inch-400x400-mm': '40x40cm / 16x16"',
-  '16x20-inch-400x500-mm': '40x50cm / 16x20"',
-  '16x24-inch-400x600-mm': '40x60cm / 16x24"',
-  '16x32-inch-400x800-mm': '40x80cm / 16x32"',
-  '18x24-inch-450x600-mm': '45x60cm / 18x24"'
+const getUniqueAttributes = (products: GelatoProduct[], attribute: string) => {
+  return Array.from(new Set(products.map(p => p.attributes[attribute])))
 }
 
-const orientationTranslations: { [key: string]: string } = {
-  hor: 'Horizontal',
-  ver: 'Vertical'
-}
-
-const thicknessTranslations: { [key: string]: string } = {
-  'wood-fsc-slim': 'Slim (2cm)',
-  'wood-fsc-thick': 'Thick (4cm)'
-}
-
+// --- Composant principal ---
 export default function CustomizeProductPage () {
   const params = useParams()
+  const { user } = useAuth()
+  const router = useRouter()
+
+  // --- States ---
   const [design, setDesign] = useState<Design | null>(null)
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<GelatoProduct[]>([])
-  const { user } = useAuth()
-
-  // Product customization state
   const [selectedFormat, setSelectedFormat] = useState<string>('')
   const [selectedOrientation, setSelectedOrientation] = useState<string>('')
   const [selectedThickness, setSelectedThickness] = useState<string>('')
@@ -90,17 +115,25 @@ export default function CustomizeProductPage () {
   const [filteredProduct, setFilteredProduct] = useState<GelatoProduct | null>(
     null
   )
+  const [selectedAddress, setSelectedAddress] =
+    useState<ShippingAddress | null>(null)
+  const [orderProcessing, setOrderProcessing] = useState(false)
+  const [finalPrice, setFinalPrice] = useState<number | null>(null)
+  const [discountCode, setDiscountCode] = useState<string>('')
+  const [appliedDiscount, setAppliedDiscount] = useState<number | null>(null)
 
-  // Extraire le pays de l'utilisateur (exemple basé sur user_metadata)
   const userCountry = (user?.user_metadata?.country as string) || 'FR'
   const flagEmoji = getFlagEmoji(userCountry)
 
+  // --- Chargement des données ---
   useEffect(() => {
-    loadDesign()
-    loadGelatoProducts()
-  }, [])
+    async function loadData () {
+      await Promise.all([loadDesign(), loadGelatoProducts()])
+    }
+    loadData()
+  }, [params.id])
 
-  async function loadDesign () {
+  const loadDesign = async () => {
     try {
       const { data, error } = await supabase
         .from('designs')
@@ -109,33 +142,43 @@ export default function CustomizeProductPage () {
         .single()
       if (error) throw error
       setDesign(data)
-    } catch (error: any) {
+    } catch (error) {
+      console.error('Error loading design:', error)
       toast.error('Error loading design')
     }
   }
 
-  async function loadGelatoProducts () {
+  const loadGelatoProducts = async () => {
     try {
       const res = await fetch('/api/gelato/products')
       if (!res.ok) throw new Error('Error loading products')
-      const prods: GelatoProduct[] = await res.json()
+      let prods: GelatoProduct[] = await res.json()
+
+      // Charger les dimensions de couverture pour chaque produit
+      prods = await Promise.all(
+        prods.map(async p => {
+          const coverDimRes = await fetch(
+            `/api/gelato/cover-dimensions?productUid=${p.productUid}&pageCount=34`
+          )
+          if (coverDimRes.ok) {
+            p.coverDimensions = await coverDimRes.json()
+          }
+          return p
+        })
+      )
       const canvasProducts = prods.filter(
         p => p.category.toLowerCase() === 'canvas'
       )
       setProducts(canvasProducts)
 
-      // Récupère les listes uniques de formats, orientations, épaisseurs
-      const formats = Array.from(
-        new Set(canvasProducts.map(p => p.attributes.UnifiedCanvasFormat))
-      )
-      const orientations = Array.from(
-        new Set(canvasProducts.map(p => p.attributes.Orientation))
-      )
-      const thicknesses = Array.from(
-        new Set(canvasProducts.map(p => p.attributes.CanvasThicknessType))
+      // Sélection par défaut
+      const formats = getUniqueAttributes(canvasProducts, 'UnifiedCanvasFormat')
+      const orientations = getUniqueAttributes(canvasProducts, 'Orientation')
+      const thicknesses = getUniqueAttributes(
+        canvasProducts,
+        'CanvasThicknessType'
       )
 
-      // Définit les valeurs par défaut
       setSelectedFormat(formats[0] || '')
       setSelectedOrientation(orientations[0] || '')
       setSelectedThickness(thicknesses[0] || '')
@@ -147,9 +190,10 @@ export default function CustomizeProductPage () {
     }
   }
 
-  // Met à jour le produit filtré quand les sélections changent
+  // --- Filtrage produit ---
   useEffect(() => {
     if (!selectedFormat || !selectedOrientation || !selectedThickness) return
+
     const prod = products.find(
       p =>
         p.attributes.UnifiedCanvasFormat === selectedFormat &&
@@ -157,24 +201,67 @@ export default function CustomizeProductPage () {
         p.attributes.CanvasThicknessType === selectedThickness
     )
     setFilteredProduct(prod || null)
-    if (prod && prod?.variants?.length > 0) {
-      setSelectedVariant(prod.variants[0])
-    } else {
-      setSelectedVariant(null)
-    }
+    setSelectedVariant(prod?.variants?.[0] || null)
   }, [selectedFormat, selectedOrientation, selectedThickness, products])
 
+  // --- Calcul du prix final ---
+  useEffect(() => {
+    if (selectedVariant && selectedVariant.price) {
+      getFinalPrice()
+    }
+  }, [selectedVariant, discountCode])
+
+  const getFinalPrice = async () => {
+    try {
+      const priceResponse = await fetch('/api/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          basePrice: selectedVariant.price,
+          currency: 'EUR',
+          discountCode: discountCode
+        })
+      })
+      if (!priceResponse.ok) {
+        throw new Error('Error calculating price')
+      }
+      const { price: calculatedPrice } = await priceResponse.json()
+      setFinalPrice(calculatedPrice)
+    } catch (error: any) {
+      console.error('Price calculation error:', error)
+      toast.error(error.message || 'Error calculating price')
+    }
+  }
+
+  // --- Gestion de la création de commande ---
   const handleCustomizationComplete = async (data: {
     variant: any
     printArea: any
   }) => {
-    if (!design || !user || !data.variant) {
-      toast.error("Please ensure you're logged in and a product is selected")
+    if (!design || !user || !selectedAddress) {
+      toast.error('Please select a shipping address')
       return
     }
-    console.log('run order', data)
+
     try {
-      // Create Gelato order
+      setOrderProcessing(true)
+      // Recalculer le prix final
+      const priceResponse = await fetch('/api/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          basePrice: data.variant.price,
+          currency: 'EUR',
+          discountCode: discountCode
+        })
+      })
+      if (!priceResponse.ok) {
+        throw new Error('Error calculating price')
+      }
+      const { price: calculatedPrice } = await priceResponse.json()
+      setFinalPrice(calculatedPrice)
+
+      // Créer la commande Gelato
       const gelatoOrderResponse = await fetch('/api/gelato/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -195,44 +282,92 @@ export default function CustomizeProductPage () {
             }
           ],
           shippingAddress: {
-            firstName:
-              user.user_metadata?.full_name?.split(' ')[0] || 'Customer',
-            lastName:
-              user.user_metadata?.full_name?.split(' ').slice(1).join(' ') ||
-              'Name',
-            email: user.email || '',
-            phone: '0662398343',
-            street: '8 impasse charlemagne',
-            city: 'Chaumes en Retz',
-            country: userCountry,
-            postCode: '44320',
-            state: ''
+            firstName: selectedAddress.first_name,
+            lastName: selectedAddress.last_name,
+            email: selectedAddress.email,
+            phone: selectedAddress.phone || '',
+            street: selectedAddress.address_line1,
+            streetAdditional: selectedAddress.address_line2 || '',
+            city: selectedAddress.city,
+            state: selectedAddress.state || '',
+            postCode: selectedAddress.post_code,
+            country: selectedAddress.country
           }
         })
       })
       if (!gelatoOrderResponse.ok) {
-        throw new Error('Error creating Gelato order')
+        const errorData = await gelatoOrderResponse.json()
+        throw new Error(errorData.message || 'Error creating Gelato order')
       }
-
       const gelatoOrderData = await gelatoOrderResponse.json()
-      // Create order in database
-      const { error: orderError } = await supabase.from('orders').insert([
-        {
-          design_id: design.id,
-          buyer_id: user.id,
-          product_type: data.variant.sku,
-          total_amount: data.variant.price,
-          order_status: gelatoOrderData.fulfillmentStatus ?? 'pending',
-          gelato_order_id: gelatoOrderData.id
-        }
-      ])
-      console.log(orderError)
+
+      // Extraction et fallback des données renvoyées par Gelato
+      const firstItem = gelatoOrderData.items?.[0]
+      const firstPreview =
+        firstItem?.previews?.[0]?.url ?? firstItem?.fileUrl ?? null
+      const orderReferenceId =
+        gelatoOrderData.orderReferenceId ?? `order-${user.id}-${Date.now()}`
+      const customerReferenceId =
+        gelatoOrderData.customerReferenceId ?? `user-${Date.now()}`
+      const trackingCode =
+        gelatoOrderData.shipment?.packages?.[0]?.trackingCode ?? null
+      const trackingUrl =
+        gelatoOrderData.shipment?.packages?.[0]?.trackingUrl ?? null
+      const billingCompany = gelatoOrderData.billingEntity?.companyName || 'N/A'
+      const marginRate = gelatoOrderData.marginRate ?? 0
+      const promotionId = gelatoOrderData.promotionId ?? 'N/A'
+      const productionFacilityId =
+        gelatoOrderData.shipment?.fulfillmentFacilityId ?? 'N/A'
+
+      // Insérer la commande dans Supabase
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert([
+          {
+            design_id: design.id,
+            buyer_id: user.id,
+            product_type: data.variant.sku,
+            base_price: data.variant.price,
+            final_price: calculatedPrice,
+            discount_code: discountCode,
+            discount_rate: appliedDiscount,
+            total_amount: data.variant.price,
+            order_status: gelatoOrderData.fulfillmentStatus || 'created',
+            gelato_order_id: gelatoOrderData.id,
+            fulfillment_status: gelatoOrderData.fulfillmentStatus,
+            financial_status: gelatoOrderData.financialStatus,
+            currency: gelatoOrderData.currency,
+            total_price: gelatoOrderData.receipts?.[0]?.productsPrice || 0,
+            total_vat: gelatoOrderData.receipts?.[0]?.totalVat || 0,
+            total_shipping: gelatoOrderData.receipts?.[0]?.shippingPrice || 0,
+            total_packaging: gelatoOrderData.receipts?.[0]?.packagingPrice || 0,
+            shipment_method_name: gelatoOrderData.shipment?.shipmentMethodName,
+            shipment_method_uid: gelatoOrderData.shipment?.shipmentMethodUid,
+            production_country: gelatoOrderData.shipment?.fulfillmentCountry,
+            tracking_code: trackingCode,
+            tracking_url: trackingUrl,
+            shipping_addresses_id: selectedAddress.id,
+            preview_url: firstPreview,
+            order_reference_id: orderReferenceId,
+            customer_reference_id: customerReferenceId,
+            billing_company_name: billingCompany,
+            margin_rate: marginRate,
+            promotion_id: promotionId,
+            production_facility_id: productionFacilityId
+          }
+        ])
+        .select()
+        .single()
+
       if (orderError) throw orderError
 
       toast.success('Order created successfully!')
+      router.push(`/order-confirmation/${orderData.id}`)
     } catch (error: any) {
       console.error('Order creation error:', error)
-      toast.error('Error creating order. Please try again.')
+      toast.error(error.message || 'Error creating order. Please try again.')
+    } finally {
+      setOrderProcessing(false)
     }
   }
 
@@ -244,22 +379,16 @@ export default function CustomizeProductPage () {
     )
   }
 
-  // Pré-calculer les choix possibles (pour hide/show dropdown)
-  const formatOptions = Array.from(
-    new Set(products.map(p => p.attributes.UnifiedCanvasFormat))
-  )
-  const orientationOptions = Array.from(
-    new Set(products.map(p => p.attributes.Orientation))
-  )
-  const thicknessOptions = Array.from(
-    new Set(products.map(p => p.attributes.CanvasThicknessType))
-  )
+  // Options pour les sélections
+  const formatOptions = getUniqueAttributes(products, 'UnifiedCanvasFormat')
+  const orientationOptions = getUniqueAttributes(products, 'Orientation')
+  const thicknessOptions = getUniqueAttributes(products, 'CanvasThicknessType')
 
   return (
     <div className='min-h-[calc(100vh-3.5rem)] py-8'>
       <div className='container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
-          {/* Left side - Canvas Editor */}
+          {/* Left side – Canvas Editor */}
           <div className='space-y-4'>
             <Card>
               <CardHeader>
@@ -273,11 +402,30 @@ export default function CustomizeProductPage () {
                     onCustomizationComplete={handleCustomizationComplete}
                   />
                 )}
+                <div className='space-y-4'>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Shipping Address</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <AddressSelector
+                        onSelect={address => setSelectedAddress(address)}
+                      />
+                    </CardContent>
+                  </Card>
+                  {!selectedAddress && (
+                    <Alert>
+                      <AlertCircle className='h-4 w-4' />
+                      <AlertDescription>
+                        Please select a shipping address to continue
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
-
-          {/* Right side - Product Configuration */}
+          {/* Right side – Product Configuration */}
           <div className='space-y-4'>
             <Card>
               <CardHeader>
@@ -285,15 +433,7 @@ export default function CustomizeProductPage () {
                   Product Configuration
                 </CardTitle>
               </CardHeader>
-
               <CardContent className='space-y-6'>
-                {/* Expédition vers le pays de l'utilisateur */}
-                <div className='flex items-center gap-2 text-sm mb-3 font-medium'>
-                  <span className='text-xl'>{flagEmoji}</span>
-                  <span>Ship to {flagEmoji}</span>
-                </div>
-
-                {/* Format Selection */}
                 <div className='space-y-2'>
                   <Label>Format</Label>
                   <Select
@@ -306,14 +446,12 @@ export default function CustomizeProductPage () {
                     <SelectContent>
                       {formatOptions.map(format => (
                         <SelectItem key={format} value={format}>
-                          {formatTranslations[format] || format}
+                          {TRANSLATIONS.formats[format] || format}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Orientation Selection - masquer si un seul choix */}
                 <div className='space-y-2'>
                   <Label>Orientation</Label>
                   {orientationOptions.length > 1 ? (
@@ -327,20 +465,18 @@ export default function CustomizeProductPage () {
                       <SelectContent>
                         {orientationOptions.map(ori => (
                           <SelectItem key={ori} value={ori}>
-                            {orientationTranslations[ori] || ori}
+                            {TRANSLATIONS.orientations[ori] || ori}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
                     <div className='p-2 rounded border text-sm text-foreground/80'>
-                      {orientationTranslations[orientationOptions[0]] ||
+                      {TRANSLATIONS.orientations[orientationOptions[0]] ||
                         orientationOptions[0]}
                     </div>
                   )}
                 </div>
-
-                {/* Thickness Selection - masquer si un seul choix */}
                 <div className='space-y-2'>
                   <Label>Thickness</Label>
                   {thicknessOptions.length > 1 ? (
@@ -354,29 +490,23 @@ export default function CustomizeProductPage () {
                       <SelectContent>
                         {thicknessOptions.map(th => (
                           <SelectItem key={th} value={th}>
-                            {thicknessTranslations[th] || th}
+                            {TRANSLATIONS.thicknesses[th] || th}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
                     <div className='p-2 rounded border text-sm text-foreground/80'>
-                      {thicknessTranslations[thicknessOptions[0]] ||
+                      {TRANSLATIONS.thicknesses[thicknessOptions[0]] ||
                         thicknessOptions[0]}
                     </div>
                   )}
                 </div>
-
-                {/* Price Display */}
-                {selectedVariant && (
+                {finalPrice !== null && (
                   <div className='bg-secondary p-4 rounded-lg text-center'>
-                    <p className='text-2xl font-bold'>
-                      {selectedVariant.price.toFixed(2)} €
-                    </p>
+                    <p className='text-2xl font-bold'>{finalPrice} €</p>
                   </div>
                 )}
-
-                {/* Shipping Information */}
                 <div className='flex items-center gap-2 text-sm text-muted-foreground'>
                   <Truck className='h-4 w-4' />
                   <TooltipProvider>
@@ -395,8 +525,6 @@ export default function CustomizeProductPage () {
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-
-                {/* Product Information */}
                 <Accordion type='single' collapsible className='w-full'>
                   <AccordionItem value='description'>
                     <AccordionTrigger>Description</AccordionTrigger>
@@ -435,7 +563,6 @@ export default function CustomizeProductPage () {
                       </div>
                     </AccordionContent>
                   </AccordionItem>
-
                   <AccordionItem value='compliance'>
                     <AccordionTrigger>
                       EU GPSR Compliance Information
@@ -458,7 +585,6 @@ export default function CustomizeProductPage () {
                       </div>
                     </AccordionContent>
                   </AccordionItem>
-
                   <AccordionItem value='packaging'>
                     <AccordionTrigger>Packaging</AccordionTrigger>
                     <AccordionContent>

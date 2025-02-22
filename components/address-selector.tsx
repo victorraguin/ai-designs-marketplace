@@ -8,9 +8,11 @@ import { Label } from '@/components/ui/label'
 import { MapPin, Plus, Star, Pencil, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { countries } from '@/lib/countries'
+import { createClient } from '@/utils/supabase/client'
+
+const supabase = createClient()
 
 interface ShippingAddress {
   id: string

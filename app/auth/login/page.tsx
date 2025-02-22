@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Eye, EyeOff } from 'lucide-react'
+import { createClient } from '@/utils/supabase/client'
 
+const supabase = createClient()
 export default function LoginPage () {
   const router = useRouter()
   const searchParams = useSearchParams()

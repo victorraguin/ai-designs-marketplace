@@ -33,3 +33,17 @@ export const styleDescriptions: Record<ArtStyle, string> = {
   mystic: 'Mystical designs with esoteric symbols and patterns',
   free: 'Complete creative freedom - no style constraints'
 }
+
+export interface Design {
+  id: string
+  image_url: string
+  prompt: string
+  title?: string
+  description?: string
+  price?: number
+  status: string
+  created_at: string
+  creator_id: string
+  category: string
+  likes_count?: number
+}
