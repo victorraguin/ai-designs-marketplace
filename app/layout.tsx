@@ -36,11 +36,9 @@ export default function RootLayout({
           defaultTheme="dark"
           enableSystem={false}
         >
-          <AuthProvider>
-            <Header />
-            <main className="flex-1">{children}</main>
-            <Toaster />
-          </AuthProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
