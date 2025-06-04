@@ -32,6 +32,7 @@ import { ProductCustomizer } from '@/components/product-customizer'
 import { toast } from 'sonner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AddressSelector } from '@/components/address-selector'
+import Script from 'next/script'
 
 const supabase = createClient()
 
@@ -385,7 +386,9 @@ export default function CustomizeProductPage () {
   const thicknessOptions = getUniqueAttributes(products, 'CanvasThicknessType')
 
   return (
-    <div className='min-h-[calc(100vh-3.5rem)] py-8'>
+    <>
+      <Script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js" strategy="beforeInteractive" />
+      <div className='min-h-[calc(100vh-3.5rem)] py-8'>
       <div className='container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
           {/* Left side – Canvas Editor */}
@@ -602,5 +605,6 @@ export default function CustomizeProductPage () {
         </div>
       </div>
     </div>
+    </>
   )
 }

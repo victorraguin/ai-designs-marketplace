@@ -7,7 +7,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { Header } from "@/components/header";
 import { AuthProvider } from "@/components/auth-provider";
-import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,13 +22,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <Script
-          src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"
-          strategy="beforeInteractive"
-          crossOrigin="anonymous"
-        />
-      </head>
+      <head />
       <body className={`${inter.className} min-h-screen flex flex-col`}>
         <ThemeProvider
           attribute="class"
