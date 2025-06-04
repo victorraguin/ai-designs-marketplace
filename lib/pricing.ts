@@ -15,7 +15,7 @@ export interface ProductPrice {
 }
 
 export function calculateFinalPrice (price: ProductPrice): number {
-  let finalPrice = 16.83
+  let finalPrice = price.basePrice
 
   // Appliquer la marge
   if (price.margin) {
