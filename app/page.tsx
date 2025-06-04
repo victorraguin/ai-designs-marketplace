@@ -1,36 +1,27 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import Image from "next/image";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import InnerImageZoom from "react-inner-image-zoom";
 import "react-inner-image-zoom/lib/InnerImageZoom/styles.css";
 
-export default function Home() {
-  const [marketplaceDesigns, setMarketplaceDesigns] = useState<
-    { id: string; image_url: string; likes_count: number }[]
-  >([]);
+interface MarketplaceDesign {
+  id: string
+  image_url: string
+  likes_count: number
+}
+export default async function Home () {
+  const supabase = createServerComponentClient({ cookies })
 
-  useEffect(() => {
-    async function fetchDesigns() {
-      const { data, error } = await supabase
-        .from("designs")
-        .select("id, image_url, likes_count")
-        .eq("status", "marketplace")
-        .order("likes_count", { ascending: false })
-        .limit(4);
+  const { data } = await supabase
+    .from('designs')
+    .select('id, image_url, likes_count')
+    .eq('status', 'marketplace')
+    .order('likes_count', { ascending: false })
+    .limit(4)
 
-      if (error) {
-        console.error("Error fetching marketplace designs:", error);
-      } else {
-        setMarketplaceDesigns(data || []);
-      }
-    }
-    fetchDesigns();
-  }, []);
+  const marketplaceDesigns = (data || []) as MarketplaceDesign[]
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
