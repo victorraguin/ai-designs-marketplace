@@ -1,4 +1,4 @@
-// File: app/customize-product/page.tsx
+// File: app/customize-product/[id]/page.tsx
 'use client'
 
 import { useEffect, useState } from 'react'
