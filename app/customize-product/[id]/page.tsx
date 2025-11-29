@@ -264,9 +264,17 @@ export default function CustomizeProductPage() {
       let printImageUrl = design.image_url
       if (data.printArea.exportedImageDataUrl) {
         toast.loading('Uploading print image...')
+
+        // Get the session token for authentication
+        const { data: sessionData } = await supabase.auth.getSession()
+        const accessToken = sessionData?.session?.access_token
+
         const uploadResponse = await fetch('/api/upload-print-image', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          },
           body: JSON.stringify({
             imageDataUrl: data.printArea.exportedImageDataUrl,
             designId: design.id,

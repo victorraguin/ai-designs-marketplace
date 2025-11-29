@@ -1,10 +1,24 @@
 // app/api/upload-print-image/route.ts
 import { NextResponse } from 'next/server'
-import { createClient } from '@/utils/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+// Create a Supabase client for storage operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
+    // Get the authorization header from the request
+    const authHeader = request.headers.get('authorization')
+
+    // Create Supabase client with the user's token if available
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: authHeader ? { Authorization: authHeader } : {}
+      }
+    })
 
     // Verify user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser()
