@@ -1,14 +1,20 @@
 // app/api/upload-print-image/route.ts
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-// Initialize Supabase client with service role for storage operations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+import { createClient } from '@/utils/supabase/server'
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient()
+
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const { imageDataUrl, designId, format, orientation } = await request.json()
 
     if (!imageDataUrl) {
@@ -31,9 +37,9 @@ export async function POST(request: Request) {
     const base64Data = matches[2]
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Generate unique filename
+    // Generate unique filename with user ID for security
     const timestamp = Date.now()
-    const filename = `print-${designId || 'unknown'}-${format || 'default'}-${orientation || 'default'}-${timestamp}.${imageFormat}`
+    const filename = `print-${user.id}-${designId || 'unknown'}-${format || 'default'}-${orientation || 'default'}-${timestamp}.${imageFormat}`
     const filePath = `print-ready/${filename}`
 
     // Upload to Supabase Storage
