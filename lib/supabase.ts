@@ -9,13 +9,17 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
   throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
 }
 
+// Check if we're running on the server
+const isServer = typeof window === 'undefined'
+
 export const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true
+      // Disable session persistence on server to avoid cookie access
+      persistSession: !isServer,
+      autoRefreshToken: !isServer
     }
   }
 )
