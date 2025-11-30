@@ -1,25 +1,35 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { Database } from '@/types/supabase'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
-}
-
-// Check if we're running on the server
-const isServer = typeof window === 'undefined'
-
-export const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+// Shared Supabase client for server-side use (webhooks, background jobs)
+// Does NOT persist sessions - for session-based auth, use @/utils/supabase/client
+export const supabase: SupabaseClient<Database> = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
-      // Disable session persistence on server to avoid cookie access
-      persistSession: !isServer,
-      autoRefreshToken: !isServer
+      persistSession: false,
+      autoRefreshToken: false
     }
   }
 )
+
+// Factory function to create a client with custom auth header
+export function createSupabaseClient(accessToken?: string): SupabaseClient<Database> {
+  return createClient<Database>(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      },
+      global: {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+      }
+    }
+  )
+}
